@@ -62,13 +62,17 @@ class Simulation:
 
 
         for _ in range(steps):
-            positions, directions, velocities = self.simulate_photon_step(positions, directions, velocities)
+            positions, directions, velocities, interaction_points = self.simulate_photon_step(positions, directions, velocities)
             if full_history:
                 for i in range(N):
                     histories[i].append(positions[i].copy())
             else:
-                for i, pos in enumerate(positions[history_samples]):
-                    histories[i].append(pos.copy())
+                for i, idx in enumerate(history_samples):
+                    inter = interaction_points[idx]
+                    if not np.isnan(inter).any():
+                        histories[i].append(inter.copy())  # intermediate point
+                    histories[i].append(positions[idx].copy())  # final position of this step
+
 
         return histories
         # step through photons
@@ -101,13 +105,14 @@ class Simulation:
         positions: NDArray[np.float32],    # (N, 3)
         directions: NDArray[np.float32],   # (N, 3)
         velocities: NDArray[np.float32],   # (N, 3)
-    ) -> Tuple[NDArray[np.float32], NDArray[np.float32], NDArray[np.float32]]:
+    ) -> Tuple[NDArray[np.float32], NDArray[np.float32], NDArray[np.float32], NDArray[np.float32]]:
         """
         Simulates a single step of photon movement and updates direction/position based on medium transitions.
         Returns updated positions, directions, states, and previous positions for logging.
         """
 
         next_positions = positions + directions * velocities[:,np.newaxis] * self.time_step
+        interaction_points = np.full_like(positions, np.nan, dtype=np.float32)
 
         y_current = positions[:, 1]
         y_next = next_positions[:, 1]
@@ -129,17 +134,44 @@ class Simulation:
             positions[enter_idx] = next_positions[enter_idx]
 
         if hit_floor_idx.size > 0:
-            normals = np.tile(np.array([[0, 1, 0]], dtype=np.float32), (hit_floor_idx.size, 1))
-            directions[hit_floor_idx] = np_vec.reflect_batch(directions[hit_floor_idx], normals)
-            # TODO: Calculate intersection with floor and set position accordingly (if dist to floor = n, then set position = newdir * (regular_dist - n))
-            positions[hit_floor_idx] = next_positions[hit_floor_idx]
+            reflected_positions, reflected_directions, intersection_points = self.handle_seafloor_reflection(positions[hit_floor_idx], next_positions[hit_floor_idx], directions[hit_floor_idx])
+            positions[hit_floor_idx] = reflected_positions
+            directions[hit_floor_idx] = reflected_directions
+            interaction_points[hit_floor_idx] = intersection_points
 
         if exit_idx.size > 0:
             # normals = np.tile(np.array([[0, -1, 0]], dtype=np.float32), (exit_idx.size, 1))
             # directions[exit_idx] = refract(directions[exit_idx], normals, eta=1.33 / 1.0)
             positions[exit_idx] = next_positions[exit_idx]
 
-        return positions, directions, velocities #, states, next_positions
+        return positions, directions, velocities, interaction_points
+    
+    def handle_seafloor_reflection(
+        self,
+        positions: NDArray[np.float32],
+        next_positions: NDArray[np.float32],
+        directions: NDArray[np.float32],
+    ) -> Tuple[NDArray[np.float32], NDArray[np.float32], NDArray[np.float32]]:
+        step = next_positions - positions
+        y0 = positions[:, 1]
+        dy = step[:, 1]
+
+        with np.errstate(divide='ignore', invalid='ignore'):
+            f = (self.seafloor_y - y0) / dy
+            f = np.clip(f, 0.0, 1.0)
+
+        intersection = positions + f[:, np.newaxis] * step
+        normals = np.tile(np.array([[0, 1, 0]], dtype=np.float32), (len(positions), 1))
+        reflected_dirs = np_vec.reflect_batch(directions, normals)
+
+        step_lengths = np.linalg.norm(step, axis=1)
+        remaining_fraction = 1.0 - f
+        remaining_step = reflected_dirs * (remaining_fraction[:, None] * step_lengths[:, None])
+
+        final_positions = intersection + remaining_step
+
+        return final_positions, reflected_dirs, intersection
+
 
 if __name__ == "__main__":
     simulation = Simulation(np.random.default_rng(secrets.randbits(128)))
