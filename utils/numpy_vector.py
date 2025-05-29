@@ -58,44 +58,49 @@ def normalize_batch(v_batch: Matrix) -> Matrix:
     return v_batch / norms
 
 
-def dot(a: Union[Vector, Matrix], b: Union[Vector, Matrix]) -> Union[float, NDArray[np.float32]]:
-    a_arr = ensure_array(a)
-    b_arr = ensure_array(b)
-    axis = 1 if is_batch(a) else 0
-    return np.sum(a_arr * b_arr, axis=axis)
+def dot_vector(a: Vector, b: Vector) -> float:
+    return float(np.dot(a, b))
+
+def dot_batch(a: Matrix, b: Matrix) -> NDArray[np.float32]:
+    return np.sum(a * b, axis=1)
 
 def cross(a: Union[Vector, Matrix], b: Union[Vector, Matrix]) -> NDArray[np.float32]:
     return np.cross(np.array(a, dtype=np.float32), np.array(b, dtype=np.float32))
 
-def reflect(ray: NDArray[np.float32], normal: NDArray[np.float32]) -> NDArray[np.float32]:
-    """Reflect a ray around a normal."""
-    ray = np.array(ray, dtype=np.float32)
-    normal = normalize_batch(normal) if is_batch(ray) else normalize_vector(normal)
-    return ray - 2 * dot(ray, normal)[:, None] * normal if is_batch(ray) else ray - 2 * dot(ray, normal) * normal
+def reflect_vector(ray: Vector, normal: Vector) -> Vector:
+    """Reflect a single ray around a normal."""
+    ray = np.asarray(ray, dtype=np.float32)
+    normal = normalize_vector(normal)
+    return ray - 2 * dot_vector(ray, normal) * normal
+
+def reflect_batch(rays: Matrix, normals: Matrix) -> Matrix:
+    """Reflect a batch of rays around corresponding normals."""
+    rays = np.asarray(rays, dtype=np.float32)
+    normals = normalize_batch(normals)
+    dot_products = dot_batch(rays, normals)[:, np.newaxis]  # shape (N, 1)
+    return rays - 2 * dot_products * normals
 
 def sample_directions_in_cone(
     laser_dir: NDArray[np.float32],
     divergence_angle: float,
-    N: int
+    num_samples: int,
+    rng: np.random.Generator
 ) -> NDArray[np.float32]:
     """
-    Generate N unit direction vectors within a cone defined by laser_dir and divergence_angle (in radians).
+    Generate num_samples unit direction vectors within a cone defined by laser_dir and divergence_angle (in radians).
     """
     # Ensure laser_dir is normalized
-    print(laser_dir)
     laser_dir = normalize_vector(laser_dir)
-    print(laser_dir)
 
     # https://math.stackexchange.com/a/205589
     # Create random directions in local cone coordinates
-    z = np.random.uniform(np.cos(divergence_angle), 1, size=N)
+    z = rng.uniform(np.cos(divergence_angle), 1, size=num_samples)
     sin_theta = np.sqrt(1 - z**2)
-    phi = np.random.uniform(0, 2 * np.pi, size=N)
+    phi = rng.uniform(0, 2 * np.pi, size=num_samples)
 
     # Local direction vectors (cone along +Z)
     x = sin_theta * np.cos(phi)
     y = sin_theta * np.sin(phi)
-    z = z
     local_dirs = np.stack([x, y, z], axis=1)  # shape (N, 3)
 
     # Build rotation matrix from [0, 0, 1] to laser_dir

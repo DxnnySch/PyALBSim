@@ -1,6 +1,9 @@
 import numpy as np
+import time
+import secrets
 from typing import List, Tuple
 from numpy.typing import NDArray
+
 from camera import Camera
 from laser import Laser
 from world import World
@@ -9,7 +12,9 @@ import utils.numpy_vector as np_vec
 from utils.visualize_paths import visualize_photon_paths
 
 class Simulation:
-    def __init__(self):
+    def __init__(self, rng):
+        self.rng = rng
+        
         self.number_of_photons = 1e5 # Number of photon packets.
         self.ratio = 3 # Photon packets within ?? spot radii are used for simulation. Here is 3. TODO: Rewrite
         self.photon_survival_threshold_weight = 0.0001 # epsilon
@@ -22,9 +27,9 @@ class Simulation:
         self.water_surface_y = -self.camera_settings.flying_height
         self.seafloor_y = -self.camera_settings.distance_seafloor_flying_height,
 
-    def simulate(self):
+    def simulate(self, photons: int, steps: int, full_history: False):
         # initialise photons, in batches?
-        N = 100
+        N = photons
         
         positions = np.zeros((N, 3), dtype=np.float32)
         
@@ -41,7 +46,7 @@ class Simulation:
         # directions = np_vec.normalize(directions)
         # print(directions)
         
-        directions = np_vec.sample_directions_in_cone(np.array(self.laser_settings.laser_direction), self.laser_settings.laser_divergence_angle, N)
+        directions = np_vec.sample_directions_in_cone(np.array(self.laser_settings.laser_direction), self.laser_settings.laser_divergence_angle, N, self.rng)
         
         velocities = np.full(N, self.world_settings.light_speed_air, dtype=np.float32)
         
@@ -51,12 +56,13 @@ class Simulation:
             histories[i].append(positions[i].copy())
 
 
-        for _ in range(700):
+        for _ in range(steps):
             positions, directions, velocities = self.simulate_photon_step(positions, directions, velocities)
-            for i in range(N):
-                histories[i].append(positions[i].copy())
-        
-        visualize_photon_paths(histories, 10, self.water_surface_y, self.seafloor_y)
+            if full_history:
+                for i in range(N):
+                    histories[i].append(positions[i].copy())
+
+        return histories
         # step through photons
             # for each photon, determine location and get strategy function
             # put photon through strategy function
@@ -99,11 +105,11 @@ class Simulation:
         y_next = next_positions[:, 1]
         states = self.evaluate_state(y_current, y_next)
 
-        air_idx = np.where(states == PhotonState.IN_AIR.value)[0]
-        enter_idx = np.where(states == PhotonState.ENTERING_WATER.value)[0]
-        water_idx = np.where(states == PhotonState.IN_WATER.value)[0]
-        hit_floor_idx = np.where(states == PhotonState.HITTING_SEAFLOOR.value)[0]
-        exit_idx = np.where(states == PhotonState.EXITING_WATER.value)[0]
+        air_idx = np.nonzero(states == PhotonState.IN_AIR.value)[0]
+        enter_idx = np.nonzero(states == PhotonState.ENTERING_WATER.value)[0]
+        water_idx = np.nonzero(states == PhotonState.IN_WATER.value)[0]
+        hit_floor_idx = np.nonzero(states == PhotonState.HITTING_SEAFLOOR.value)[0]
+        exit_idx = np.nonzero(states == PhotonState.EXITING_WATER.value)[0]
 
         # Process each state
         positions[air_idx] = next_positions[air_idx]
@@ -116,7 +122,7 @@ class Simulation:
 
         if hit_floor_idx.size > 0:
             normals = np.tile(np.array([[0, 1, 0]], dtype=np.float32), (hit_floor_idx.size, 1))
-            directions[hit_floor_idx] = np_vec.reflect(directions[hit_floor_idx], normals)
+            directions[hit_floor_idx] = np_vec.reflect_batch(directions[hit_floor_idx], normals)
             # TODO: Calculate intersection with floor and set position accordingly (if dist to floor = n, then set position = newdir * (regular_dist - n))
             positions[hit_floor_idx] = next_positions[hit_floor_idx]
 
@@ -128,5 +134,11 @@ class Simulation:
         return positions, directions, velocities #, states, next_positions
 
 if __name__ == "__main__":
-    simulation = Simulation()
-    simulation.simulate()
+    simulation = Simulation(np.random.default_rng(secrets.randbits(128)))
+    start = time.time()
+    for _ in range(4):
+        histories = simulation.simulate(20_000, 700, False)
+    histories = simulation.simulate(20_000, 700, True)
+    elapsed_vectorized = time.time() - start
+    print(f"Vectorized time: {elapsed_vectorized:.6f} seconds")
+    visualize_photon_paths(histories, 10, simulation.water_surface_y, simulation.seafloor_y)
