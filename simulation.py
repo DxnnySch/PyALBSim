@@ -12,7 +12,7 @@ import utils.numpy_vector as np_vec
 from utils.visualize_paths import visualize_photon_paths
 
 class Simulation:
-    def __init__(self, rng):
+    def __init__(self, rng: np.random.Generator):
         self.rng = rng
         
         self.number_of_photons = 1e5 # Number of photon packets.
@@ -27,9 +27,10 @@ class Simulation:
         self.water_surface_y = -self.camera_settings.flying_height
         self.seafloor_y = -self.camera_settings.distance_seafloor_flying_height,
 
-    def simulate(self, photons: int, steps: int, full_history: False):
+    def simulate(self, photons: int, steps: int, full_history: False, num_samples_history: int = 0):
         # initialise photons, in batches?
         N = photons
+        history_samples = self.rng.integers(0, photons, num_samples_history)
         
         positions = np.zeros((N, 3), dtype=np.float32)
         
@@ -50,10 +51,14 @@ class Simulation:
         
         velocities = np.full(N, self.world_settings.light_speed_air, dtype=np.float32)
         
-        histories: List[List[NDArray[np.float32]]] = [[] for _ in range(N)]
+        histories: List[List[NDArray[np.float32]]] = [[] for _ in range(num_samples_history)]
         
-        for i in range(N):
-            histories[i].append(positions[i].copy())
+        if full_history:
+            for i in range(N):
+                histories[i].append(positions[i].copy())
+        else:
+            for i, pos in enumerate(positions[history_samples]):
+                histories[i].append(pos.copy())
 
 
         for _ in range(steps):
@@ -61,6 +66,9 @@ class Simulation:
             if full_history:
                 for i in range(N):
                     histories[i].append(positions[i].copy())
+            else:
+                for i, pos in enumerate(positions[history_samples]):
+                    histories[i].append(pos.copy())
 
         return histories
         # step through photons
@@ -136,9 +144,8 @@ class Simulation:
 if __name__ == "__main__":
     simulation = Simulation(np.random.default_rng(secrets.randbits(128)))
     start = time.time()
-    for _ in range(4):
-        histories = simulation.simulate(20_000, 700, False)
-    histories = simulation.simulate(20_000, 700, True)
+    for _ in range(5):
+        histories = simulation.simulate(20_000, 700, False, 10)
     elapsed_vectorized = time.time() - start
     print(f"Vectorized time: {elapsed_vectorized:.6f} seconds")
-    visualize_photon_paths(histories, 10, simulation.water_surface_y, simulation.seafloor_y)
+    visualize_photon_paths(histories, simulation.water_surface_y, simulation.seafloor_y)
