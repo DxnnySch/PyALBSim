@@ -131,3 +131,96 @@ def sample_directions_in_cone(
     directions = local_dirs @ R.T  # Rotate each local direction to align with laser_dir
 
     return directions.astype(np.float32)
+
+
+def random_unit_vector(rng: np.random.Generator) -> Vector:
+    v = rng.normal(size=3)
+    return v / np.linalg.norm(v)
+
+def random_unit_vector_batch(rng: np.random.Generator, n: int) -> Matrix:
+    v = rng.normal(size=(n, 3))
+    v /= np.linalg.norm(v, axis=1, keepdims=True)
+    return v.astype(np.float32)
+
+# -----------------------------
+# Reflection direction sampling functions
+# -----------------------------
+def heuristic_sample(normal: Vector, rng: np.random.Generator) -> Vector:
+    return normalize_vector(normal + random_unit_vector(rng))
+
+def heuristic_sample_batch(normals: Matrix, rng: np.random.Generator) -> Matrix:
+    return normalize_batch(normals + random_unit_vector_batch(rng, normals.shape[0]))
+
+def uniform_hemisphere_sample(normal: Vector, rng: np.random.Generator) -> Vector:
+    while True:
+        direction = random_unit_vector(rng)
+        if np.dot(direction, normal) > 0:
+            return direction
+
+def uniform_hemisphere_sample_batch(normals: Matrix, rng: np.random.Generator) -> Matrix:
+    n = normals.shape[0]
+    dirs = random_unit_vector_batch(rng, n)
+
+    # Dot product to check which side each vector is on
+    # Einstein summation does not build a temporary array, and is much more memory optimized
+    # https://stackoverflow.com/a/33641428/8990620
+    dots = np.einsum('ij,ij->i', dirs, normals)
+
+    # Flip directions that are in the wrong hemisphere
+    dirs[dots < 0] *= -1
+
+    return normalize_batch(dirs)
+
+def cosine_weighted_sample(normal: Vector, rng: np.random.Generator) -> Vector:
+    u1 = rng.random()
+    u2 = rng.random()
+    r = np.sqrt(u1)
+    theta = 2 * np.pi * u2
+
+    x = r * np.cos(theta)
+    y = r * np.sin(theta)
+    z = np.sqrt(1 - u1)
+    local = np.array([x, y, z], dtype=np.float32)
+
+    up = np.array([0, 0, 1], dtype=np.float32)
+    if np.abs(normal[2]) > 0.999:
+        up = np.array([1, 0, 0], dtype=np.float32)
+
+    tangent = np.cross(up, normal)
+    tangent = normalize_vector(tangent)
+    bitangent = np.cross(normal, tangent)
+
+    return normalize_vector(
+        tangent * local[0] + bitangent * local[1] + normal * local[2]
+    )
+
+def cosine_weighted_sample_batch(normals: Matrix, rng: np.random.Generator) -> Matrix:
+    n = normals.shape[0]
+    u1 = rng.random(n)
+    u2 = rng.random(n)
+    r = np.sqrt(u1)
+    theta = 2 * np.pi * u2
+    x = r * np.cos(theta)
+    y = r * np.sin(theta)
+    z = np.sqrt(1 - u1)
+    local_dirs = np.stack((x, y, z), axis=1)
+
+    results = np.empty_like(local_dirs)
+    up = np.array([0, 0, 1], dtype=np.float32)
+    for i in range(n):
+        normal = normals[i]
+        if np.abs(normal[2]) > 0.999:
+            t_up = np.array([1, 0, 0], dtype=np.float32)
+        else:
+            t_up = up
+        tangent = normalize_vector(np.cross(t_up, normal))
+        bitangent = np.cross(normal, tangent)
+        local = local_dirs[i]
+        world = (
+            tangent * local[0] +
+            bitangent * local[1] +
+            normal * local[2]
+        )
+        results[i] = normalize_vector(world)
+    return results
+

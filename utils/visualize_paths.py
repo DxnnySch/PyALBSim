@@ -26,12 +26,11 @@ def visualize_photon_paths(
         path_array = np.array(path)
         x = path_array[:, 0]
         y = path_array[:, 1]
-        plt.plot(x, y, '-o', label=f'Photon {i + 1}', alpha=0.6, markersize=2)
+        plt.plot(x, y, '-o', alpha=0.6, markersize=2)
 
     plt.xlabel('X position')
     plt.ylabel('Y position (depth)')
     plt.title(f'Sample of {len(histories)} Photon Paths (2D)')
-    # plt.gca().invert_yaxis()  # So depth increases downward
     plt.legend()
     plt.grid(True)
     plt.tight_layout()

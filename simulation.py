@@ -10,13 +10,13 @@ from world import World
 from utils.photon_state import PhotonState
 import utils.numpy_vector as np_vec
 from utils.visualize_paths import visualize_photon_paths
+from utils.plot_histogram import plot_histogram
 
 class Simulation:
     def __init__(self, rng: np.random.Generator):
         self.rng = rng
         
         self.number_of_photons = 1e5 # Number of photon packets.
-        self.ratio = 3 # Photon packets within ?? spot radii are used for simulation. Here is 3. TODO: Rewrite
         self.photon_survival_threshold_weight = 0.0001 # epsilon
 
         self.laser_settings = Laser()
@@ -25,61 +25,36 @@ class Simulation:
 
         self.time_step = 1 / self.camera_settings.sample_rate
         self.water_surface_y = -self.camera_settings.flying_height
-        self.seafloor_y = -self.camera_settings.distance_seafloor_flying_height,
+        self.seafloor_y = -self.camera_settings.distance_seafloor_flying_height
 
-    def simulate(self, photons: int, steps: int, full_history: False, num_samples_history: int = 0):
-        # initialise photons, in batches?
-        N = photons
-        history_samples = self.rng.integers(0, photons, num_samples_history)
-        
+        # self.seafloor_reflection_function_batch = lambda direction, normals: np_vec.reflect_batch(direction, normals)
+        self.seafloor_reflection_function_batch = lambda direction, normals: np_vec.heuristic_sample_batch(normals, self.rng)
+
+    def simulate_batch(self, num_photons: int, steps: int, num_samples_history: int = 0):
+        N = num_photons
+        history_samples = self.rng.integers(0, num_photons, num_samples_history)
+
         positions = np.zeros((N, 3), dtype=np.float32)
-        
-        # All directions pointing down
-        # directions = np.tile(np.array([[0, -1, 0]], dtype=np.float32), (N, 1))
-        
-        # Directions down with little randomness
-        # angles = np.random.uniform(-0.1, 0.1, size=(N, 2))
-        # directions = np.stack([
-        #     np.sin(angles[:, 0]),
-        #     -np.ones(N),
-        #     np.sin(angles[:, 1])
-        # ], axis=1)
-        # directions = np_vec.normalize(directions)
-        # print(directions)
-        
+
         directions = np_vec.sample_directions_in_cone(np.array(self.laser_settings.laser_direction), self.laser_settings.laser_divergence_angle, N, self.rng)
-        
+
         velocities = np.full(N, self.world_settings.light_speed_air, dtype=np.float32)
+
+        full_histories: List[List[NDArray[np.float32]]] = [[] for _ in range(num_samples_history)]
         
-        histories: List[List[NDArray[np.float32]]] = [[] for _ in range(num_samples_history)]
-        
-        if full_history:
-            for i in range(N):
-                histories[i].append(positions[i].copy())
-        else:
-            for i, pos in enumerate(positions[history_samples]):
-                histories[i].append(pos.copy())
+        for i, pos in enumerate(positions[history_samples]):
+            full_histories[i].append(pos.copy())
 
 
         for _ in range(steps):
             positions, directions, velocities, interaction_points = self.simulate_photon_step(positions, directions, velocities)
-            if full_history:
-                for i in range(N):
-                    histories[i].append(positions[i].copy())
-            else:
-                for i, idx in enumerate(history_samples):
-                    inter = interaction_points[idx]
-                    if not np.isnan(inter).any():
-                        histories[i].append(inter.copy())  # intermediate point
-                    histories[i].append(positions[idx].copy())  # final position of this step
+            for i, idx in enumerate(history_samples):
+                inter = interaction_points[idx]
+                if not np.isnan(inter).any():
+                    full_histories[i].append(inter.copy())  # intermediate point
+                full_histories[i].append(positions[idx].copy())  # final position of this step
 
-
-        return histories
-        # step through photons
-            # for each photon, determine location and get strategy function
-            # put photon through strategy function
-            # repeat
-            # maybe culling?
+        return full_histories
 
     def evaluate_state(
         self,
@@ -162,7 +137,7 @@ class Simulation:
 
         intersection = positions + f[:, np.newaxis] * step
         normals = np.tile(np.array([[0, 1, 0]], dtype=np.float32), (len(positions), 1))
-        reflected_dirs = np_vec.reflect_batch(directions, normals)
+        reflected_dirs = self.seafloor_reflection_function_batch(directions, normals)
 
         step_lengths = np.linalg.norm(step, axis=1)
         remaining_fraction = 1.0 - f
@@ -176,8 +151,8 @@ class Simulation:
 if __name__ == "__main__":
     simulation = Simulation(np.random.default_rng(secrets.randbits(128)))
     start = time.time()
-    for _ in range(5):
-        histories = simulation.simulate(20_000, 700, False, 10)
+    for i in range(5):
+        histories = simulation.simulate_batch(20_000, 700, 1000)
     elapsed_vectorized = time.time() - start
     print(f"Vectorized time: {elapsed_vectorized:.6f} seconds")
     visualize_photon_paths(histories, simulation.water_surface_y, simulation.seafloor_y)
