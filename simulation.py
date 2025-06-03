@@ -1,6 +1,7 @@
 import numpy as np
 import time
 import secrets
+import math
 from typing import List, Tuple
 from numpy.typing import NDArray
 
@@ -10,12 +11,11 @@ from world import World
 from utils.photon_state import PhotonState
 import utils.numpy_vector as np_vec
 from utils.visualize_paths import visualize_photon_paths
-from utils.plot_histogram import plot_histogram
 
 class Simulation:
     def __init__(self, rng: np.random.Generator):
         self.rng = rng
-        
+
         self.number_of_photons = 1e5 # Number of photon packets.
         self.photon_survival_threshold_weight = 0.0001 # epsilon
 
@@ -41,7 +41,7 @@ class Simulation:
         velocities = np.full(N, self.world_settings.light_speed_air, dtype=np.float32)
 
         full_histories: List[List[NDArray[np.float32]]] = [[] for _ in range(num_samples_history)]
-        
+
         for i, pos in enumerate(positions[history_samples]):
             full_histories[i].append(pos.copy())
 
@@ -54,7 +54,11 @@ class Simulation:
                     full_histories[i].append(inter.copy())  # intermediate point
                 full_histories[i].append(positions[idx].copy())  # final position of this step
 
-        return full_histories
+        print("number of vectors that are close to laser direction: ", len(np.nonzero(np.einsum('ij,j->i', directions, np_vec.normalize_vector(np.array(self.laser_settings.laser_direction, dtype=np.float32)*-1)) >= math.cos(self.laser_settings.field_of_view))[0]))
+        
+        filtered_histories = [full_histories[i] for i in range(len(full_histories)) if (np.einsum('ij,j->i', directions[history_samples], np_vec.normalize_vector(np.array(self.laser_settings.laser_direction, dtype=np.float32))*-1) >= math.cos(self.laser_settings.field_of_view))[i]]
+
+        return filtered_histories
 
     def evaluate_state(
         self,
@@ -104,9 +108,10 @@ class Simulation:
         positions[water_idx] = next_positions[water_idx]
 
         if enter_idx.size > 0:
-            # normals = np.tile(np.array([[0, 1, 0]], dtype=np.float32), (enter_idx.size, 1))
-            # directions[enter_idx] = refract(directions[enter_idx], normals, eta=1.0 / 1.33)
-            positions[enter_idx] = next_positions[enter_idx]
+            refracted_positions, refracted_directions, intersection_points = self.handle_enter_exit_water_refraction(positions[enter_idx], next_positions[enter_idx], directions[enter_idx], 1, self.world_settings.refractive_index_water, False)
+            positions[enter_idx] = refracted_positions
+            directions[enter_idx] = refracted_directions
+            interaction_points[enter_idx] = intersection_points
 
         if hit_floor_idx.size > 0:
             reflected_positions, reflected_directions, intersection_points = self.handle_seafloor_reflection(positions[hit_floor_idx], next_positions[hit_floor_idx], directions[hit_floor_idx])
@@ -115,12 +120,13 @@ class Simulation:
             interaction_points[hit_floor_idx] = intersection_points
 
         if exit_idx.size > 0:
-            # normals = np.tile(np.array([[0, -1, 0]], dtype=np.float32), (exit_idx.size, 1))
-            # directions[exit_idx] = refract(directions[exit_idx], normals, eta=1.33 / 1.0)
-            positions[exit_idx] = next_positions[exit_idx]
+            refracted_positions, refracted_directions, intersection_points = self.handle_enter_exit_water_refraction(positions[exit_idx], next_positions[exit_idx], directions[exit_idx], self.world_settings.refractive_index_water, 1, True)
+            positions[exit_idx] = refracted_positions
+            directions[exit_idx] = refracted_directions
+            interaction_points[exit_idx] = intersection_points
 
         return positions, directions, velocities, interaction_points
-    
+
     def handle_seafloor_reflection(
         self,
         positions: NDArray[np.float32],
@@ -147,12 +153,82 @@ class Simulation:
 
         return final_positions, reflected_dirs, intersection
 
+    def handle_enter_exit_water_refraction(
+        self,
+        positions: NDArray[np.float32],
+        next_positions: NDArray[np.float32],
+        directions: NDArray[np.float32],
+        n1: float,
+        n2: float,
+        invert_normals: bool
+    ) -> Tuple[NDArray[np.float32], NDArray[np.float32], NDArray[np.float32]]:
+        """
+        Handle refraction or reflection at a flat water surface.
+
+        Args:
+            positions: (N, 3) current photon positions
+            next_positions: (N, 3) next positions
+            directions: (N, 3) current directions (normalized)
+            n1: refractive index of current medium (e.g. air)
+            n2: refractive index of next medium (e.g. water)
+
+        Returns:
+            - updated positions (interaction points)
+            - updated directions (after refraction/reflection)
+            - interaction_points (intersections with water surface)
+        """
+
+        normals = np.tile(np.array([[0, -1 if invert_normals else 1, 0]], dtype=np.float32), (len(positions), 1))
+
+        step = next_positions - positions
+        y0 = positions[:, 1]
+        dy = step[:, 1]
+
+        with np.errstate(divide='ignore', invalid='ignore'):
+            f = (self.water_surface_y - y0) / dy
+            f = np.clip(f, 0.0, 1.0)
+
+        intersection = positions + f[:, np.newaxis] * step
+
+        # Step 2: Compute refraction or reflection
+        eta = n1 / n2
+        I = directions
+        N = normals
+
+        cos_i = -np.einsum('ij,ij->i', I, N)
+        k = 1.0 - eta**2 * (1.0 - cos_i**2)
+        tir_mask = k < 0.0
+
+        # Total internal reflection → reflect(I, N)
+        reflected_dirs = I - 2 * np.einsum('ij,ij->i', I, N)[:, None] * N
+
+        # Refraction direction
+        sqrt_k = np.sqrt(np.maximum(k, 0.0))
+        refracted_dirs = eta * I + (eta * cos_i - sqrt_k)[:, None] * N
+
+        # Final direction: use reflection for TIR, else refraction
+        new_directions = np.where(tir_mask[:, None], reflected_dirs, refracted_dirs)
+
+        step_lengths = np.linalg.norm(step, axis=1)
+        remaining_fraction = 1.0 - f
+        remaining_step = new_directions * (remaining_fraction[:, None] * step_lengths[:, None])
+
+        final_positions = intersection + remaining_step
+
+        return final_positions, new_directions, intersection
+
+
 
 if __name__ == "__main__":
     simulation = Simulation(np.random.default_rng(secrets.randbits(128)))
     start = time.time()
-    for i in range(5):
-        histories = simulation.simulate_batch(20_000, 700, 1000)
+    total_photons = 100_000_0
+    batches = 10
+    steps = 700
+    visualize_paths = 10000
+
+    for i in range(batches):
+        histories = simulation.simulate_batch(total_photons // batches, steps, visualize_paths if i == batches - 1 else 0)
     elapsed_vectorized = time.time() - start
     print(f"Vectorized time: {elapsed_vectorized:.6f} seconds")
     visualize_photon_paths(histories, simulation.water_surface_y, simulation.seafloor_y)
