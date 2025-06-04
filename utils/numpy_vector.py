@@ -1,6 +1,6 @@
 import numpy as np
 from numpy.typing import NDArray
-from typing import Union, List
+from typing import Tuple, Union, List
 
 # Type aliases
 Vector = Union[List[float], NDArray[np.float32]]         # Single vector
@@ -62,7 +62,7 @@ def dot_vector(a: Vector, b: Vector) -> float:
     return float(np.dot(a, b))
 
 def dot_batch(a: Matrix, b: Matrix) -> NDArray[np.float32]:
-    return np.sum(a * b, axis=1)
+    return np.einsum('ij,ij->i', a, b)
 
 def cross(a: Union[Vector, Matrix], b: Union[Vector, Matrix]) -> NDArray[np.float32]:
     return np.cross(np.array(a, dtype=np.float32), np.array(b, dtype=np.float32))
@@ -81,20 +81,20 @@ def reflect_batch(rays: Matrix, normals: Matrix) -> Matrix:
     return rays - 2 * dot_products * normals
 
 def sample_directions_in_cone(
-    laser_dir: NDArray[np.float32],
-    divergence_angle: float,
+    center_dir: NDArray[np.float32],
+    cone_angle: float,
     num_samples: int,
     rng: np.random.Generator
 ) -> NDArray[np.float32]:
     """
-    Generate num_samples unit direction vectors within a cone defined by laser_dir and divergence_angle (in radians).
+    Generate num_samples unit direction vectors within a cone defined by center_dir and cone_angle (in radians).
     """
     # Ensure laser_dir is normalized
-    laser_dir = normalize_vector(laser_dir)
+    center_dir = normalize_vector(center_dir)
 
     # https://math.stackexchange.com/a/205589
     # Create random directions in local cone coordinates
-    z = rng.uniform(np.cos(divergence_angle), 1, size=num_samples)
+    z = rng.uniform(np.cos(cone_angle), 1, size=num_samples)
     sin_theta = np.sqrt(1 - z**2)
     phi = rng.uniform(0, 2 * np.pi, size=num_samples)
 
@@ -127,10 +127,21 @@ def sample_directions_in_cone(
         R = np.eye(3) + kmat + kmat @ kmat * ((1 - c) / (s ** 2))
         return R
 
-    R = rotation_matrix_from_vectors(np.array([0, 0, 1], dtype=np.float32), laser_dir.astype(np.float32))
+    R = rotation_matrix_from_vectors(np.array([0, 0, 1], dtype=np.float32), center_dir.astype(np.float32))
     directions = local_dirs @ R.T  # Rotate each local direction to align with laser_dir
 
     return directions.astype(np.float32)
+
+def sample_directions_in_cone_with_pdf(
+    center_dir: NDArray[np.float32],
+    cone_angle: float,
+    num_samples: int,
+    rng: np.random.Generator
+) -> Tuple[NDArray[np.float32], float]:
+    directions = sample_directions_in_cone(center_dir, cone_angle, num_samples, rng)
+    cos_theta_max = np.cos(cone_angle)
+    pdf = 1.0 / (2 * np.pi * (1 - cos_theta_max))
+    return directions, pdf
 
 
 def random_unit_vector(rng: np.random.Generator) -> Vector:
