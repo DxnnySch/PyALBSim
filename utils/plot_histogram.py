@@ -23,7 +23,6 @@ def plot_histogram(vector: np.ndarray, bins: int = None, title: str = "vector", 
     
     plt.figure(figsize=(6, 4))
     plt.hist(vector, bins=bins, color='skyblue', edgecolor='black', alpha=0.75)
-    plt.axvline(1.0, color='black', linestyle='--', label='Expected length = 1')
     plt.title(title)
     plt.xlabel(xlabel)
     plt.ylabel("Frequency")

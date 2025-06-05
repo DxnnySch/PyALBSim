@@ -2,15 +2,21 @@ import numpy as np
 import time
 import secrets
 import math
+import sys
+from scipy.spatial import KDTree
 from typing import List, Tuple
 from numpy.typing import NDArray
 
 from camera import Camera
 from laser import Laser
+from utils.plot_2d import plot_2d
 from world import World
 from utils.photon_state import PhotonState
 import utils.numpy_vector as np_vec
 from utils.visualize_paths import visualize_photon_paths
+from utils.plot_scatter_2d import plot_scatter_2d
+from utils.plot_histogram import plot_histogram
+
 
 class Simulation:
     def __init__(self, rng: np.random.Generator):
@@ -26,20 +32,24 @@ class Simulation:
         self.time_step = 1 / self.camera_settings.sample_rate
         self.water_surface_y = -self.camera_settings.flying_height
         self.seafloor_y = -self.camera_settings.distance_seafloor_flying_height
-        self.sensor_direction = np.array(self.laser_settings.laser_direction, dtype=np.float32) * -1
 
-        # self.seafloor_reflection_function_batch = lambda direction, normals: np_vec.reflect_batch(direction, normals)
         self.seafloor_reflection_function_batch = lambda direction, normals: np_vec.heuristic_sample_batch(normals, self.rng)
-        
-        self.total_close = 0
 
-    def simulate_batch(self, num_photons: int, steps: int, num_samples_history: int = 0):
+        self.photons_list: List[Tuple[NDArray[np.float32], NDArray[np.float32], float, float, bool]] = [] # (position, direction, energy, time_step, reflection)
+        self.photon_np_array: NDArray
+        self.photon_tree: KDTree
+
+        self.return_waveform = np.zeros(2500)
+
+    def simulate_batch(self, num_photons: int, steps: int, forward: bool = True, num_samples_history: int = 0):
+        self.current_step = 0
+
         N = num_photons
         history_samples = self.rng.integers(0, num_photons, num_samples_history)
 
         positions = np.zeros((N, 3), dtype=np.float32)
 
-        directions = np_vec.sample_directions_in_cone(np.array(self.laser_settings.laser_direction), self.laser_settings.laser_divergence_angle, N, self.rng)
+        directions = np_vec.sample_directions_in_cone(np.array(self.laser_settings.laser_direction), self.laser_settings.laser_divergence_angle if forward else self.laser_settings.field_of_view, N, self.rng)
 
         velocities = np.full(N, self.world_settings.light_speed_air, dtype=np.float32)
         energies = np.full(N, 1, dtype=np.float32)
@@ -51,19 +61,56 @@ class Simulation:
 
 
         for _ in range(steps):
-            positions, directions, velocities, energies, interaction_points = self.simulate_photon_step(positions, directions, velocities, energies)
+            positions, directions, velocities, energies, interaction_points = self.simulate_photon_step(positions, directions, velocities, energies, forward = forward)
             for i, idx in enumerate(history_samples):
                 inter = interaction_points[idx]
                 if not np.isnan(inter).any():
                     full_histories[i].append(inter.copy())  # intermediate point
                 full_histories[i].append(positions[idx].copy())  # final position of this step
-
-        print("number of vectors that are close to laser direction: ", len(np.nonzero(np.einsum('ij,j->i', directions, np_vec.normalize_vector(np.array(self.laser_settings.laser_direction, dtype=np.float32)*-1)) >= math.cos(self.laser_settings.field_of_view))[0]))
-        self.total_close += len(np.nonzero(np.einsum('ij,j->i', directions, np_vec.normalize_vector(np.array(self.laser_settings.laser_direction, dtype=np.float32)*-1)) >= math.cos(self.laser_settings.field_of_view))[0]);
-        
-        # filtered_histories = [full_histories[i] for i in range(len(full_histories)) if (np.einsum('ij,j->i', directions[history_samples], np_vec.normalize_vector(np.array(self.laser_settings.laser_direction, dtype=np.float32))*-1) >= math.cos(self.laser_settings.field_of_view))[i]]
+            self.current_step += 1
 
         return full_histories
+
+    def store_photons(
+        self,
+        positions: NDArray[np.float32],
+        directions: NDArray[np.float32],
+        energies: NDArray[np.float32],
+        time_steps: NDArray[np.float32],
+        reflection: bool
+    ) -> None:
+        for position, direction, energy, time_step in zip(positions, directions, energies, time_steps):
+            self.photons_list.append((position, direction, energy, time_step, reflection))
+
+    def sample_photons(
+        self,
+        positions: NDArray[np.float32],
+        directions: NDArray[np.float32],
+        energies: NDArray[np.float32],
+        time_steps: NDArray[np.float32],
+        reflection: bool
+    ) -> None:
+        for position, direction, energy, time_step in zip(positions, directions, energies, time_steps):
+            idx = self.photon_tree.query_ball_point(position, r=0.02)
+            done = 0
+            for photon_position, photon_direction, photon_energy, photon_time_step, photon_reflection in self.photon_np_array[idx]:
+                if done >= 10:
+                    break
+                if photon_reflection != reflection: continue
+
+                if reflection: 
+                    store_energy = energy * photon_energy * (1 / np.pi) * max(0, np_vec.dot_vector(np.array([0, 1, 0]), -photon_direction))
+                    store_time = time_step + photon_time_step
+
+                    self.return_waveform[int(store_time)] += store_energy
+
+                done += 1
+
+
+    # ========================================
+    # Step Function
+    # ========================================
+
 
     def evaluate_state(
         self,
@@ -90,6 +137,7 @@ class Simulation:
         directions: NDArray[np.float32],   # (N, 3)
         velocities: NDArray[np.float32],   # (N, 3)
         energies: NDArray[np.float32],     # (N, 3)
+        forward: bool
     ) -> Tuple[NDArray[np.float32], NDArray[np.float32], NDArray[np.float32], NDArray[np.float32], NDArray[np.float32]]:
         """
         Simulates a single step of photon movement and updates direction/position based on medium transitions.
@@ -114,34 +162,62 @@ class Simulation:
         positions[water_idx] = next_positions[water_idx]
 
         if enter_idx.size > 0:
-            refracted_positions, refracted_directions, intersection_points = self.handle_enter_exit_water_refraction(positions[enter_idx], next_positions[enter_idx], directions[enter_idx], 1, self.world_settings.refractive_index_water, False)
+            refracted_positions, refracted_directions, intersection_points = self.handle_enter_exit_water_refraction(
+                positions[enter_idx],
+                next_positions[enter_idx],
+                directions[enter_idx],
+                1,
+                self.world_settings.refractive_index_water,
+                False,
+                forward = forward
+            )
             positions[enter_idx] = refracted_positions
             directions[enter_idx] = refracted_directions
             interaction_points[enter_idx] = intersection_points
 
         if hit_floor_idx.size > 0:
-            reflected_positions, reflected_directions, reflected_energies, intersection_points = self.handle_seafloor_reflection(positions[hit_floor_idx], next_positions[hit_floor_idx], directions[hit_floor_idx], energies[hit_floor_idx])
+            reflected_positions, reflected_directions, intersection_points = self.handle_seafloor_reflection(
+                positions[hit_floor_idx],
+                next_positions[hit_floor_idx],
+                directions[hit_floor_idx],
+                energies[hit_floor_idx],
+                forward = forward
+            )
             # print(reflected_positions.shape)
             positions[hit_floor_idx] = reflected_positions
             directions[hit_floor_idx] = reflected_directions
-            energies[hit_floor_idx] = reflected_energies
             interaction_points[hit_floor_idx] = intersection_points
 
         if exit_idx.size > 0:
-            refracted_positions, refracted_directions, intersection_points = self.handle_enter_exit_water_refraction(positions[exit_idx], next_positions[exit_idx], directions[exit_idx], self.world_settings.refractive_index_water, 1, True)
+            refracted_positions, refracted_directions, intersection_points = self.handle_enter_exit_water_refraction(
+                positions[exit_idx],
+                next_positions[exit_idx],
+                directions[exit_idx],
+                self.world_settings.refractive_index_water,
+                1,
+                True,
+                forward = forward
+            )
             positions[exit_idx] = refracted_positions
             directions[exit_idx] = refracted_directions
             interaction_points[exit_idx] = intersection_points
 
         return positions, directions, velocities, energies, interaction_points
 
+
+    # ========================================
+    # Interaction Handlers
+    # ========================================
+
+
     def handle_seafloor_reflection(
         self,
         positions: NDArray[np.float32],
         next_positions: NDArray[np.float32],
         directions: NDArray[np.float32],
-        energy: NDArray[np.float32],
-    ) -> Tuple[NDArray[np.float32], NDArray[np.float32], NDArray[np.float32], NDArray[np.float32]]:
+        energies: NDArray[np.float32],
+        forward: bool
+    ) -> Tuple[NDArray[np.float32], NDArray[np.float32], NDArray[np.float32]]:
         step = next_positions - positions
         y0 = positions[:, 1]
         dy = step[:, 1]
@@ -152,24 +228,9 @@ class Simulation:
 
         intersection = positions + f[:, np.newaxis] * step
         normals = np.tile(np.array([[0, 1, 0]], dtype=np.float32), (len(positions), 1))
-        
+
         # Sample reflection directions toward the sensor
-        reflected_dirs, pdf = np_vec.sample_directions_in_cone_with_pdf(
-            self.sensor_direction.astype(np.float32),
-            math.radians(22.5), # np.pi / 4,
-            len(positions),
-            self.rng
-        )
-
-        # Ensure all directions are normalized
-        reflected_dirs = reflected_dirs / np.linalg.norm(reflected_dirs, axis=1, keepdims=True)
-
-        # Compute cos(theta) = dot(N, outgoing_dir)
-        cos_theta = np_vec.dot_batch(normals, reflected_dirs)
-        cos_theta = np.clip(cos_theta, 0.0, 1.0)
-
-        # Lambertian reflection energy with importance sampling correction
-        out_energy = energy * ((1.0 / np.pi) * cos_theta / pdf)
+        reflected_dirs = self.seafloor_reflection_function_batch(directions, normals)
 
         step_lengths = np.linalg.norm(step, axis=1)
         remaining_fraction = 1.0 - f
@@ -177,7 +238,12 @@ class Simulation:
 
         final_positions = intersection + remaining_step
 
-        return final_positions, reflected_dirs, out_energy, intersection
+        if forward:
+            self.store_photons(intersection, directions, energies, remaining_fraction + self.current_step, True)
+        else:
+            self.sample_photons(intersection, directions, energies, remaining_fraction + self.current_step, True)
+
+        return final_positions, reflected_dirs, intersection
 
     def handle_enter_exit_water_refraction(
         self,
@@ -186,7 +252,8 @@ class Simulation:
         directions: NDArray[np.float32],
         n1: float,
         n2: float,
-        invert_normals: bool
+        invert_normals: bool,
+        forward: bool
     ) -> Tuple[NDArray[np.float32], NDArray[np.float32], NDArray[np.float32]]:
         """
         Handle refraction or reflection at a flat water surface.
@@ -237,6 +304,7 @@ class Simulation:
 
         step_lengths = np.linalg.norm(step, axis=1)
         remaining_fraction = 1.0 - f
+        # TODO: Fix velocity under water?
         remaining_step = new_directions * (remaining_fraction[:, None] * step_lengths[:, None])
 
         final_positions = intersection + remaining_step
@@ -246,18 +314,41 @@ class Simulation:
 
 
 if __name__ == "__main__":
-    simulation = Simulation(np.random.default_rng(secrets.randbits(128)))
+    rng = np.random.default_rng(secrets.randbits(128))
+    simulation = Simulation(rng)
     start = time.time()
-    total_photons = 100_000_000
-    batches = 500
-    steps = 700
+    photons_per_batch = 10_000
+    batches = 5
+    steps = 1250
     visualize_paths = 250
 
     for i in range(batches):
-        histories = simulation.simulate_batch(total_photons // batches, steps, visualize_paths if i == batches - 1 else 0)
+        simulation.simulate_batch(photons_per_batch, steps, True, 0)
+        if (i+1) % 10 == 0:
+            print(f"{i+1} in {(time.time() - start):.2f} s")
+    elapsed = time.time() - start
+    print(f"time: {elapsed:.6f} seconds")
+
+    print(f"{len(simulation.photons_list)} entries in photon list, {(sys.getsizeof(simulation.photons_list) / 1024):.2f} KiB")
+
+    simulation.photon_np_array = np.zeros(len(simulation.photons_list), dtype=[("position", np.float32, 3), ("distance", np.float32, 3), ("energy", np.float32), ("time", np.float32), ("reflection", bool)])
+    simulation.photon_np_array[...] = simulation.photons_list
+    positions = np.array(simulation.photon_np_array["position"])
+    simulation.photon_tree = KDTree(positions)
+    
+    # visualize_photons = simulation.photon_np_array[rng.integers(0, len(simulation.photon_np_array), 1_000)]
+    # plot_scatter_2d(visualize_photons["position"][:, 0], visualize_photons["position"][:, 2], ylabel="Z-Axis")
+
+    start = time.time()
+    photons_per_batch = 10_000
+    batches = 1
+    steps = 1250
+
+    for i in range(batches):
+        simulation.simulate_batch(photons_per_batch, steps, False, 0)
         if (i+1) % 20 == 0:
-            print(f"after {i+1} in {(time.time() - start):.2f} s: {simulation.total_close} are close")
-    elapsed_vectorized = time.time() - start
-    print(f"Vectorized time: {elapsed_vectorized:.6f} seconds")
-    print(f"total close: {simulation.total_close}")
-    visualize_photon_paths(histories, simulation.water_surface_y, simulation.seafloor_y)
+            print(f"{i+1} in {(time.time() - start):.2f} s")
+    elapsed = time.time() - start
+    print(f"time: {elapsed:.6f} seconds")
+    
+    plot_2d(simulation.return_waveform, ylabel="Intensity", xlabel="Sample")
