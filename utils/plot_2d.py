@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-def plot_2d(data: np.ndarray, title: str = "vector", xlabel: str = "X-Axis", ylabel: str = "Y-Axis"):
+def plot_2d(data: np.ndarray, y_axis: np.ndarray = None, title: str = "vector", xlabel: str = "X-Axis", ylabel: str = "Y-Axis"):
     """
     Plots a line diagram.
     
