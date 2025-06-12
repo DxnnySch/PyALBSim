@@ -11,6 +11,7 @@ from numpy.typing import NDArray
 
 from camera import Camera
 from laser import Laser
+from utils.gpt_ffscatter import generate_ff_phase_function, sample_scattering_directions_batch, scatter_energy
 from world import World
 from utils.photon_state import PhotonState
 import utils.numpy_vector as np_vec
@@ -38,14 +39,16 @@ class Simulation:
         self.laser_settings = Laser()
         self.camera_settings = Camera()
         self.world_settings = World(self.laser_settings, self.camera_settings)
+        self.ff_theta, self.ff_phase = generate_ff_phase_function(n_ff=1.0, M=18000)
         
+        # TODO: fix sample multiplier changing breaking store_time in sample_photons
         self.sample_multiplier = 10
 
         self.time_step = 1 / (self.camera_settings.sample_rate * self.sample_multiplier)
         self.water_surface_y = -self.camera_settings.flying_height
         self.seafloor_y = -self.camera_settings.distance_seafloor_flying_height
 
-        self.seafloor_reflection_function_batch = lambda direction, normals: np_vec.heuristic_sample_batch(normals, self.rng)
+        self.seafloor_reflection_function_batch = lambda direction, normals: np_vec.cosine_weighted_sample_batch(normals, self.rng)
 
         self.photon_batches: List[NDArray] = [] # (position, direction, energy, time_step, reflection)
         self.photon_np_array: NDArray
@@ -57,6 +60,7 @@ class Simulation:
 
     def simulate_batch(self, num_photons: int, steps: int, forward: bool = True, num_samples_history: int = 0):
         self.current_step = 0
+        inner_start_time = time.time()
 
         N = num_photons
         history_samples = self.rng.integers(0, num_photons, num_samples_history)
@@ -75,7 +79,7 @@ class Simulation:
             full_histories[i].append(pos.copy())
 
 
-        for _ in range(steps * self.sample_multiplier):
+        for c_step in range(steps * self.sample_multiplier):
             positions, directions, velocities, energies, scatter_distances, interaction_points = self.simulate_photon_step(positions, directions, velocities, energies, scatter_distances, forward = forward)
             for i, idx in enumerate(history_samples):
                 inter = interaction_points[idx]
@@ -83,6 +87,8 @@ class Simulation:
                     full_histories[i].append(inter.copy())  # intermediate point
                 full_histories[i].append(positions[idx].copy())  # final position of this step
             self.current_step += 1
+            # if not forward and ((c_step + 1) / self.sample_multiplier) % 10 == 0:
+            #     print(f"current at inner step {(c_step + 1) / self.sample_multiplier} after {(time.time() - inner_start_time):.2f} s = {((time.time() - inner_start_time) / 60):.2f} min")
 
         return full_histories
 
@@ -117,14 +123,7 @@ class Simulation:
             if not idx: # nothing found
                 (self.photons_found_reflection if reflection else self.photons_found_scatter).append(0)
                 continue
-            
-            # if reflection:
-            #     self.photons_found_reflection.append(sum(p["reflection"] == reflection for p in self.photon_np_array[idx]))
-            # else:
-            #     self.photons_found_scatter.append(sum(p["reflection"] == reflection for p in self.photon_np_array[idx]))
-            # done = 0
-            # found = self.photon_np_array[idx]
-            # sort_idx = np.argsort(np.linalg.norm(found["position"] - position, axis=1))
+
             photons = self.photon_np_array[idx]
             match_mask = (photons["reflection"] == reflection)
             matching = photons[match_mask]
@@ -140,13 +139,13 @@ class Simulation:
             k = 2
             k_eff = min(k, len(dists))
             nearest_idx = np.argpartition(dists, k_eff - 1)[:k_eff] if k_eff > 0 else []
-            for photon_position, photon_direction, photon_energy, photon_time_step, photon_reflection in matching[nearest_idx]: #found[sort_idx]:
+            for photon_position, photon_direction, photon_energy, photon_time_step, _ in matching[nearest_idx]: #found[sort_idx]:
                 # if done >= 2:
                 #     break
                 # if photon_reflection != reflection: continue
 
                 if reflection: 
-                    store_energy = energy * photon_energy * (self.world_settings.seafloor_albedo / np.pi) * max(0, np_vec.dot_vector(np.array([0, 1, 0]), -photon_direction))
+                    store_energy = energy * photon_energy * (self.world_settings.seafloor_albedo / np.pi) * max(0, np_vec.dot_vector(np.array([0, 1, 0]), -direction))
                     store_time = time_step + photon_time_step
 
                     self.return_waveform[int(store_time / self.sample_multiplier)] += store_energy
@@ -154,19 +153,21 @@ class Simulation:
                     # 1. Vector from scatter point to sensor (i.e. reverse of backward ray)
                     view_dir = -direction
 
-                    # 2. Photon originally came from photon_direction
-                    cos_theta = np.dot(view_dir, -photon_direction)
-                    cos_theta = np.clip(cos_theta, -1.0, 1.0)  # Numerical safety
+                    # # 2. Photon originally came from photon_direction
+                    # cos_theta = np.dot(view_dir, -photon_direction)
+                    # cos_theta = np.clip(cos_theta, -1.0, 1.0)  # Numerical safety
 
-                    theta = np.arccos(cos_theta)
+                    # theta = np.arccos(cos_theta)
 
-                    # 3. Interpolate FF phase function probability at this angle
-                    ff_prob = np.interp(theta, self.world_settings.ct_r, self.world_settings.ff_phase_pdf).astype(np.float32)
+                    # # 3. Interpolate FF phase function probability at this angle
+                    # ff_prob = np.interp(theta, self.world_settings.ct_r, self.world_settings.ff_phase_pdf).astype(np.float32)
 
-                    # 4. Energy contribution (scaled by FF phase prob)
-                    # The 1/pi term may not apply here — FF scattering is anisotropic, not Lambertian
-                    # This is the scattering PDF * incoming energy * current energy
-                    store_energy = energy * photon_energy * ff_prob
+                    # # 4. Energy contribution (scaled by FF phase prob)
+                    # # The 1/pi term may not apply here — FF scattering is anisotropic, not Lambertian
+                    # # This is the scattering PDF * incoming energy * current energy
+                    # store_energy = energy * photon_energy * ff_prob
+
+                    store_energy = energy * photon_energy * scatter_energy(self.ff_phase, self.ff_theta, photon_direction, view_dir)
 
                     # 5. Total time is round-trip time
                     store_time = time_step + photon_time_step
@@ -523,52 +524,54 @@ class Simulation:
             scatter_points[idx] = scatter_pos
 
             # Random azimuth and longitudinal angle (based on ff phase function)
-            f2 = self.rng.uniform(0, 2 * np.pi, size=len(idx)).astype(np.float32)
-            rand_ct = self.rng.random(len(idx)).astype(np.float32)
-            ct2 = np.interp(rand_ct, self.world_settings.ff_phase_cdf, self.world_settings.ct_r).astype(np.float32)
+            # f2 = self.rng.uniform(0, 2 * np.pi, size=len(idx)).astype(np.float32)
+            # rand_ct = self.rng.random(len(idx)).astype(np.float32)
+            # ct2 = np.interp(rand_ct, self.world_settings.ff_phase_cdf, self.world_settings.ct_r).astype(np.float32)
 
-            ux2 = directions[idx][:, 0]
-            uy2 = directions[idx][:, 1]
-            uz2 = directions[idx][:, 2]
+            # ux2 = directions[idx][:, 0]
+            # uy2 = directions[idx][:, 1]
+            # uz2 = directions[idx][:, 2]
 
-            same_z_mask = np.abs(uz2) > 0.99999
-            new_dir = np.empty((len(idx), 3), dtype=np.float32)
+            # same_z_mask = np.abs(uz2) > 0.99999
+            # new_dir = np.empty((len(idx), 3), dtype=np.float32)
 
-            sin_ct2 = np.sin(ct2)
-            cos_ct2 = np.cos(ct2)
+            # sin_ct2 = np.sin(ct2)
+            # cos_ct2 = np.cos(ct2)
 
-            # Case 1: nearly aligned with Z
-            new_dir[same_z_mask, 0] = sin_ct2[same_z_mask] * np.cos(f2[same_z_mask])
-            new_dir[same_z_mask, 1] = sin_ct2[same_z_mask] * np.sin(f2[same_z_mask])
-            new_dir[same_z_mask, 2] = np.sign(uz2[same_z_mask]) * cos_ct2[same_z_mask]
+            # # Case 1: nearly aligned with Z
+            # new_dir[same_z_mask, 0] = sin_ct2[same_z_mask] * np.cos(f2[same_z_mask])
+            # new_dir[same_z_mask, 1] = sin_ct2[same_z_mask] * np.sin(f2[same_z_mask])
+            # new_dir[same_z_mask, 2] = np.sign(uz2[same_z_mask]) * cos_ct2[same_z_mask]
 
-            # Case 2: general case
-            not_same_z = ~same_z_mask
-            denom = np.sqrt(1 - uz2[not_same_z]**2)
-            sin_f2 = np.sin(f2[not_same_z])
-            cos_f2 = np.cos(f2[not_same_z])
+            # # Case 2: general case
+            # not_same_z = ~same_z_mask
+            # denom = np.sqrt(1 - uz2[not_same_z]**2)
+            # sin_f2 = np.sin(f2[not_same_z])
+            # cos_f2 = np.cos(f2[not_same_z])
 
-            new_dir[not_same_z, 0] = (
-                sin_ct2[not_same_z] * (
-                    ux2[not_same_z] * uz2[not_same_z] * cos_f2 -
-                    uy2[not_same_z] * sin_f2
-                ) / denom +
-                ux2[not_same_z] * cos_ct2[not_same_z]
-            )
-            new_dir[not_same_z, 1] = (
-                sin_ct2[not_same_z] * (
-                    uy2[not_same_z] * uz2[not_same_z] * cos_f2 +
-                    ux2[not_same_z] * sin_f2
-                ) / denom +
-                uy2[not_same_z] * cos_ct2[not_same_z]
-            )
-            new_dir[not_same_z, 2] = (
-                -sin_ct2[not_same_z] * denom * cos_f2 +
-                uz2[not_same_z] * cos_ct2[not_same_z]
-            )
+            # new_dir[not_same_z, 0] = (
+            #     sin_ct2[not_same_z] * (
+            #         ux2[not_same_z] * uz2[not_same_z] * cos_f2 -
+            #         uy2[not_same_z] * sin_f2
+            #     ) / denom +
+            #     ux2[not_same_z] * cos_ct2[not_same_z]
+            # )
+            # new_dir[not_same_z, 1] = (
+            #     sin_ct2[not_same_z] * (
+            #         uy2[not_same_z] * uz2[not_same_z] * cos_f2 +
+            #         ux2[not_same_z] * sin_f2
+            #     ) / denom +
+            #     uy2[not_same_z] * cos_ct2[not_same_z]
+            # )
+            # new_dir[not_same_z, 2] = (
+            #     -sin_ct2[not_same_z] * denom * cos_f2 +
+            #     uz2[not_same_z] * cos_ct2[not_same_z]
+            # )
 
-            # Normalize directions
-            new_dir = np_vec.normalize_batch(new_dir)
+            # # Normalize directions
+            # new_dir = np_vec.normalize_batch(new_dir)
+            # new_directions[idx] = new_dir
+            new_dir = np_vec.normalize_batch(sample_scattering_directions_batch(self.ff_phase, self.ff_theta, directions[idx], self.rng))
             new_directions[idx] = new_dir
 
             # Energy loss due to scattering
@@ -587,7 +590,7 @@ class Simulation:
             new_scatter_distances[idx] = -np.log(rand_vals) / self.world_settings.lidar_attenuation_coefficient
             
             if forward:
-                self.store_photons(scatter_points[idx], new_directions[idx], new_energies[idx], t + self.current_step, False)
+                self.store_photons(scatter_points[idx], directions[idx], energies[idx], t + self.current_step, False)
             else:
                 self.sample_photons(scatter_points[idx], directions[idx], energies[idx], t + self.current_step, False)
 
@@ -598,7 +601,7 @@ if __name__ == "__main__":
     rng = np.random.default_rng(secrets.randbits(128))
     simulation = Simulation(rng)
     start = time.time()
-    photons_per_batch = 50_000
+    photons_per_batch = 25_000
     batches = 250
     steps = 1250
     visualize_paths = 0
@@ -614,7 +617,7 @@ if __name__ == "__main__":
     profiler.disable()
 
     elapsed = time.time() - start
-    print(f"time forward: {elapsed:.6f} seconds")
+    print(f"time forward: {elapsed:.6f} seconds = {(elapsed / 60):.2f} min")
 
     stats = pstats.Stats(profiler).sort_stats('tottime')
     stats.print_stats(30)  # Top 30 functions
@@ -632,7 +635,7 @@ if __name__ == "__main__":
     # plot_scatter_2d(visualize_photons["position"][:, 0], visualize_photons["position"][:, 1], ylabel="Y-Axis")
 
     start = time.time()
-    photons_per_batch = 10_000
+    photons_per_batch = 5_000
     batches = 25
     steps = 1250
 
@@ -646,13 +649,15 @@ if __name__ == "__main__":
     profiler.disable()
 
     elapsed = time.time() - start
-    print(f"time backward: {elapsed:.6f} seconds")
+    print(f"time backward: {elapsed:.6f} seconds = {(elapsed / 60):.2f} min")
 
     stats = pstats.Stats(profiler).sort_stats('tottime')
     stats.print_stats(30)  # Top 30 functions
 
-    plot_2d(simulation.return_waveform, ylabel="Intensity", xlabel="Sample")
+    plot_2d(simulation.return_waveform, title="waveform", ylabel="Intensity", xlabel="Sample")
     photons_reflections = np.array(simulation.photons_found_reflection)
-    plot_histogram(photons_reflections[photons_reflections < 400], bins = 400, title="Number of Photons found at Reflections", xlabel="Photons in Radius")
+    print(f"{np.count_nonzero(photons_reflections == 0)} sensor photons found no reflection photons, {(np.count_nonzero(photons_reflections == 0) / len(photons_reflections) * 100):.3f} %")
     photons_scatters = np.array(simulation.photons_found_scatter)
+    print(f"{np.count_nonzero(photons_scatters == 0)} sensor photons found no scatter photons, {(np.count_nonzero(photons_scatters == 0) / len(photons_scatters) * 100):.3f} %")
+    plot_histogram(photons_reflections[photons_reflections < 400], bins = 400, title="Number of Photons found at Reflections", xlabel="Photons in Radius")
     plot_histogram(photons_scatters[photons_scatters < 400], bins = 400, title="Number of Photons found at Scatters", xlabel="Photons in Radius")

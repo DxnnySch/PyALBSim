@@ -41,8 +41,6 @@ def FFScatter(n_FF=1.10, M=18000):
     return v, Bp, p_ct_r, Delta_pi, ct_r
 
 if __name__ == "__main__":
-    v, Bp, p_ct_r, Delta_pi = FFScatter(n_FF=1.10, M=18000)
-    print(v, Bp)
-    pdf = p_ct_r / np.sum(p_ct_r)
-    cdf = np.cumsum(pdf)
-    plot_2d(cdf)
+    v_1, Bp_1, p_ct_r_1, Delta_pi_1, ct_r_1 = FFScatter(n_FF=1.10, M=18000)
+    print(v_1, Bp_1)
+    plot_2d(p_ct_r_1)
