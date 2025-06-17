@@ -26,6 +26,7 @@ photon_dtype = [
     ("energy", np.float32),
     ("time", np.float32),
     ("reflection", bool),
+    ("already_reflected", bool),
 ]
 
 
@@ -72,6 +73,7 @@ class Simulation:
         velocities = np.full(N, self.world_settings.light_speed_air, dtype=np.float32)
         energies = np.full(N, 1, dtype=np.float32)
         scatter_distances = np.full(N, np.inf, dtype=np.float32)
+        already_reflected = np.full(N, False, dtype=bool)
 
         full_histories: List[List[NDArray[np.float32]]] = [[] for _ in range(num_samples_history)]
 
@@ -80,7 +82,7 @@ class Simulation:
 
 
         for c_step in range(steps * self.sample_multiplier):
-            positions, directions, velocities, energies, scatter_distances, interaction_points = self.simulate_photon_step(positions, directions, velocities, energies, scatter_distances, forward = forward)
+            positions, directions, velocities, energies, scatter_distances, interaction_points, already_reflected = self.simulate_photon_step(positions, directions, velocities, energies, scatter_distances, already_reflected, forward = forward)
             for i, idx in enumerate(history_samples):
                 inter = interaction_points[idx]
                 if not np.isnan(inter).any():
@@ -98,15 +100,19 @@ class Simulation:
         directions: NDArray[np.float32],
         energies: NDArray[np.float32],
         time_steps: NDArray[np.float32],
-        reflection: bool
+        reflection: bool,
+        already_reflected = None
     ) -> None:
         n = positions.shape[0]
         new_photons = np.empty(n, dtype=photon_dtype)
+        if already_reflected is None:
+            already_reflected = np.full(n, True)
         new_photons["position"] = positions
         new_photons["direction"] = directions
         new_photons["energy"] = energies
         new_photons["time"] = time_steps
         new_photons["reflection"] = reflection
+        new_photons["already_reflected"] = already_reflected
 
         self.photon_batches.append(new_photons)
 
@@ -139,7 +145,7 @@ class Simulation:
             k = 2
             k_eff = min(k, len(dists))
             nearest_idx = np.argpartition(dists, k_eff - 1)[:k_eff] if k_eff > 0 else []
-            for photon_position, photon_direction, photon_energy, photon_time_step, _ in matching[nearest_idx]: #found[sort_idx]:
+            for photon_position, photon_direction, photon_energy, photon_time_step, _, _ in matching[nearest_idx]: #found[sort_idx]:
                 # if done >= 2:
                 #     break
                 # if photon_reflection != reflection: continue
@@ -272,8 +278,9 @@ class Simulation:
         velocities: NDArray[np.float32],   # (N, 3)
         energies: NDArray[np.float32],     # (N, 3)
         scatter_distances: NDArray[np.float32],     # (N, 3)
+        already_reflected: NDArray,     # (N, 3)
         forward: bool
-    ) -> Tuple[NDArray[np.float32], NDArray[np.float32], NDArray[np.float32], NDArray[np.float32], NDArray[np.float32], NDArray[np.float32]]:
+    ) -> Tuple[NDArray[np.float32], NDArray[np.float32], NDArray[np.float32], NDArray[np.float32], NDArray[np.float32], NDArray[np.float32], NDArray]:
         """
         Simulates a single step of photon movement and updates direction/position based on medium transitions.
         Returns updated positions, directions, states, and previous positions for logging.
@@ -326,11 +333,12 @@ class Simulation:
             interaction_points[enter_idx] = intersection_points
 
         if hit_floor_idx.size > 0:
-            reflected_positions, reflected_directions, reflected_energies, intersection_points = self.handle_seafloor_reflection(
+            reflected_positions, reflected_directions, reflected_energies, intersection_points, reflected_already_reflected = self.handle_seafloor_reflection(
                 positions[hit_floor_idx],
                 next_positions[hit_floor_idx],
                 directions[hit_floor_idx],
                 energies[hit_floor_idx],
+                already_reflected[hit_floor_idx],
                 forward = forward
             )
             # print(reflected_positions.shape)
@@ -338,6 +346,7 @@ class Simulation:
             directions[hit_floor_idx] = reflected_directions
             energies[hit_floor_idx] = reflected_energies
             interaction_points[hit_floor_idx] = intersection_points
+            already_reflected[hit_floor_idx] = reflected_already_reflected
 
         if exit_idx.size > 0:
             refracted_positions, refracted_directions, new_scatter_distances, intersection_points = self.handle_enter_exit_water_refraction(
@@ -355,7 +364,7 @@ class Simulation:
             scatter_distances[exit_idx] = new_scatter_distances
             interaction_points[exit_idx] = intersection_points
 
-        return positions, directions, velocities, energies, scatter_distances, interaction_points
+        return positions, directions, velocities, energies, scatter_distances, interaction_points, already_reflected
 
 
     # ========================================
@@ -369,6 +378,7 @@ class Simulation:
         next_positions: NDArray[np.float32],
         directions: NDArray[np.float32],
         energies: NDArray[np.float32],
+        already_reflected: NDArray,
         forward: bool
     ) -> Tuple[NDArray[np.float32], NDArray[np.float32], NDArray[np.float32], NDArray[np.float32]]:
         step = next_positions - positions
@@ -392,13 +402,14 @@ class Simulation:
         final_positions = intersection + remaining_step
 
         if forward:
-            self.store_photons(intersection, directions, energies, f + self.current_step, True)
+            self.store_photons(intersection, directions, energies, f + self.current_step, True, already_reflected)
         else:
             self.sample_photons(intersection, directions, energies, f + self.current_step, True)
 
         energies *= self.world_settings.seafloor_albedo
+        already_reflected = np.full(len(energies), True)
 
-        return final_positions, reflected_dirs, energies, intersection
+        return final_positions, reflected_dirs, energies, intersection, already_reflected
 
     def handle_enter_exit_water_refraction(
         self,
@@ -612,7 +623,7 @@ if __name__ == "__main__":
     for i in range(batches):
         history = simulation.simulate_batch(photons_per_batch, steps, True, visualize_paths if i == batches - 1 else 0)
         if (i+1) % 5 == 0:
-            print(f"{i+1} in {(time.time() - start):.2f} s = {((time.time() - start) / 60):.2f} min, estimated remaining: {((((time.time() - start) / 60) / (i+1)) * (batches - i + 1)):.2f} min")
+            print(f"{i+1} in {(time.time() - start):.2f} s = {((time.time() - start) / 60):.2f} min, estimated remaining: {((((time.time() - start) / 60) / (i+1)) * (batches - (i + 1))):.2f} min")
 
     profiler.disable()
 

@@ -11,7 +11,7 @@ def generate_ff_phase_function(n_ff=1.1, M=18000):
     mu = np.cos(theta)  # Cosine of scattering angle
 
     # Simple Fournier-Forand phase function approximation (single parameter version)
-    # p(θ) ∝ 1 / (1 + (n_ff * θ)^2)^(1.5)
+    # p(theta) = 1 / (1 + (n_ff * theta)^2)^(1.5)
     ff_phase = 1 / (1 + (n_ff * theta)**2)**1.5
 
     # Normalize so integral over sphere is 1
@@ -28,7 +28,7 @@ def plot_phase_function(theta, ff_phase):
     plt.figure(figsize=(8, 4))
     plt.semilogy(np.degrees(theta), ff_phase)
     plt.xlabel('Scattering Angle (degrees)')
-    plt.ylabel('Phase Function p(θ)')
+    plt.ylabel('Phase Function p(theta)')
     plt.title('Fournier-Forand Phase Function')
     plt.grid(True)
     plt.tight_layout()
@@ -70,52 +70,52 @@ def scatter_energy(ff_phase, theta, a_dir, b_dir):
     phase_interp = interp1d(theta, ff_phase, kind='linear', bounds_error=False, fill_value=0)
     return phase_interp(scatter_angle)
 
-def sample_scattering_directions_batch(ff_phase, theta, incoming_dirs):
-    """
-    Vectorized batch sampling of scattering directions for arbitrary incoming directions.
+# def sample_scattering_directions_batch(ff_phase, theta, incoming_dirs):
+#     """
+#     Vectorized batch sampling of scattering directions for arbitrary incoming directions.
     
-    Parameters:
-        ff_phase: Phase function values
-        theta: Angle array (same length as ff_phase)
-        incoming_dirs: (N, 3) array of unit vectors representing incoming photon directions
+#     Parameters:
+#         ff_phase: Phase function values
+#         theta: Angle array (same length as ff_phase)
+#         incoming_dirs: (N, 3) array of unit vectors representing incoming photon directions
         
-    Returns:
-        directions: (N, 3) numpy array of scattered unit direction vectors
-    """
-    N = incoming_dirs.shape[0]
+#     Returns:
+#         directions: (N, 3) numpy array of scattered unit direction vectors
+#     """
+#     N = incoming_dirs.shape[0]
 
-    # CDF for inverse transform sampling
-    cdf = np.cumsum(ff_phase * np.sin(theta))
-    cdf /= cdf[-1]
-    inverse_cdf = interp1d(cdf, theta, kind='linear', bounds_error=False, fill_value=(theta[0], theta[-1]))
+#     # CDF for inverse transform sampling
+#     cdf = np.cumsum(ff_phase * np.sin(theta))
+#     cdf /= cdf[-1]
+#     inverse_cdf = interp1d(cdf, theta, kind='linear', bounds_error=False, fill_value=(theta[0], theta[-1]))
 
-    # Sample scattering angles
-    random_vals = np.random.rand(N)
-    scatter_theta = inverse_cdf(random_vals)
-    scatter_phi = np.random.uniform(0, 2 * np.pi, size=N)
+#     # Sample scattering angles
+#     random_vals = np.random.rand(N)
+#     scatter_theta = inverse_cdf(random_vals)
+#     scatter_phi = np.random.uniform(0, 2 * np.pi, size=N)
 
-    # Local frame scattering vectors (z-aligned frame)
-    x_local = np.sin(scatter_theta) * np.cos(scatter_phi)
-    y_local = np.sin(scatter_theta) * np.sin(scatter_phi)
-    z_local = np.cos(scatter_theta)
-    local_dirs = np.stack((x_local, y_local, z_local), axis=1)
+#     # Local frame scattering vectors (z-aligned frame)
+#     x_local = np.sin(scatter_theta) * np.cos(scatter_phi)
+#     y_local = np.sin(scatter_theta) * np.sin(scatter_phi)
+#     z_local = np.cos(scatter_theta)
+#     local_dirs = np.stack((x_local, y_local, z_local), axis=1)
 
-    # Rotate local_dir into incoming_dir frame
-    def compute_rotation_matrix(v):
-        """Construct orthonormal basis (u, v, w) where w = v (z'), u is arbitrary orthogonal."""
-        w = v / np.linalg.norm(v)
-        up = np.array([0.0, 0.0, 1.0]) if abs(w[2]) < 0.99 else np.array([1.0, 0.0, 0.0])
-        u = np.cross(up, w)
-        u /= np.linalg.norm(u)
-        v_ = np.cross(w, u)
-        return np.stack((u, v_, w), axis=1)  # 3x3 rotation matrix
+#     # Rotate local_dir into incoming_dir frame
+#     def compute_rotation_matrix(v):
+#         """Construct orthonormal basis (u, v, w) where w = v (z'), u is arbitrary orthogonal."""
+#         w = v / np.linalg.norm(v)
+#         up = np.array([0.0, 0.0, 1.0]) if abs(w[2]) < 0.99 else np.array([1.0, 0.0, 0.0])
+#         u = np.cross(up, w)
+#         u /= np.linalg.norm(u)
+#         v_ = np.cross(w, u)
+#         return np.stack((u, v_, w), axis=1)  # 3x3 rotation matrix
 
-    # Build rotation matrices per photon
-    rotation_matrices = np.array([compute_rotation_matrix(v) for v in incoming_dirs])  # (N, 3, 3)
+#     # Build rotation matrices per photon
+#     rotation_matrices = np.array([compute_rotation_matrix(v) for v in incoming_dirs])  # (N, 3, 3)
 
-    # Apply rotations: batched matrix-vector multiplication
-    directions = np.einsum('nij,nj->ni', rotation_matrices, local_dirs)
-    return directions
+#     # Apply rotations: batched matrix-vector multiplication
+#     directions = np.einsum('nij,nj->ni', rotation_matrices, local_dirs)
+#     return directions
 
 def sample_scattering_directions_batch(ff_phase, theta, incoming_dirs, rng: np.random.Generator):
     """
@@ -147,22 +147,51 @@ def sample_scattering_directions_batch(ff_phase, theta, incoming_dirs, rng: np.r
     z_local = np.cos(scatter_theta)
     local_dirs = np.stack((x_local, y_local, z_local), axis=1)
 
-    # Rotate local_dir into incoming_dir frame
-    def compute_rotation_matrix(v):
-        """Construct orthonormal basis (u, v, w) where w = v (z'), u is arbitrary orthogonal."""
-        w = v / np.linalg.norm(v)
-        up = np.array([0.0, 0.0, 1.0]) if abs(w[2]) < 0.99 else np.array([1.0, 0.0, 0.0])
-        u = np.cross(up, w)
-        u /= np.linalg.norm(u)
-        v_ = np.cross(w, u)
-        return np.stack((u, v_, w), axis=1)  # 3x3 rotation matrix
-
     # Build rotation matrices per photon
-    rotation_matrices = np.array([compute_rotation_matrix(v) for v in incoming_dirs])  # (N, 3, 3)
+    # rotation_matrices = np.array([compute_rotation_matrix(v) for v in incoming_dirs])  # (N, 3, 3)
+    rotation_matrices = build_rotation_matrices(incoming_dirs)
 
     # Apply rotations: batched matrix-vector multiplication
     directions = np.einsum('nij,nj->ni', rotation_matrices, local_dirs)
     return directions
+
+# Rotate local_dir into incoming_dir frame
+def compute_rotation_matrix(v):
+    """Construct orthonormal basis (u, v, w) where w = v (z'), u is arbitrary orthogonal."""
+    w = v / np.linalg.norm(v)
+    up = np.array([0.0, 0.0, 1.0]) if abs(w[2]) < 0.99 else np.array([1.0, 0.0, 0.0])
+    u = np.cross(up, w)
+    u /= np.linalg.norm(u)
+    v_ = np.cross(w, u)
+    return np.stack((u, v_, w), axis=1)  # 3x3 rotation matrix
+
+def build_rotation_matrices(incoming_dirs):
+    """
+    Vectorized construction of rotation matrices to align local +z with incoming_dirs.
+    
+    Parameters:
+        incoming_dirs: (N, 3) array of incoming unit direction vectors.
+        
+    Returns:
+        rotation_matrices: (N, 3, 3) array of rotation matrices.
+    """
+    N = incoming_dirs.shape[0]
+    w = incoming_dirs / np.linalg.norm(incoming_dirs, axis=1, keepdims=True)  # (N, 3)
+
+    # Choose "up" vector adaptively to avoid numerical instability
+    use_z_up = np.abs(w[:, 2]) < 0.99
+    up = np.zeros_like(w)
+    up[use_z_up] = np.array([0, 0, 1])
+    up[~use_z_up] = np.array([1, 0, 0])
+
+    u = np.cross(up, w)
+    u /= np.linalg.norm(u, axis=1, keepdims=True)
+
+    v = np.cross(w, u)
+
+    # Stack u, v, w as rotation matrix columns
+    rotation_matrices = np.stack((u, v, w), axis=2)  # shape (N, 3, 3)
+    return rotation_matrices
 
 
 # Example usage
@@ -182,5 +211,5 @@ if __name__ == "__main__":
     b_dir = scatter_dir         # sampled
     energy = scatter_energy(ff_phase, theta, a_dir, b_dir)
 
-    print(f"Sampled scattering direction: θ = {np.degrees(scatter_theta):.2f}°, φ = {np.degrees(scatter_phi):.2f}°")
+    print(f"Sampled scattering direction: theta = {np.degrees(scatter_theta):.2f}°, phi = {np.degrees(scatter_phi):.2f}°")
     print(f"Scattering energy (probability density): {energy:.4e}")

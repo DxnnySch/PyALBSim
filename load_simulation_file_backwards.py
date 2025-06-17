@@ -14,7 +14,7 @@ simulation = Simulation(rng)
 
 start = time.time()
 
-simulation.photon_np_array = np.load("photon-map_12,500,000-photons.npy", allow_pickle=False)
+simulation.photon_np_array = np.load("photon-map_6,250,000-photons.npy", allow_pickle=False)
 positions = simulation.photon_np_array["position"]
 simulation.photon_tree = KDTree(positions)
 
