@@ -1,5 +1,5 @@
 import numpy as np
-from utils.plot_2d import plot_2d
+from plot_2d import plot_2d
 
 def FFScatter(n_FF=1.10, M=18000):
     """

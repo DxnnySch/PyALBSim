@@ -14,7 +14,7 @@ simulation = Simulation(rng)
 
 start = time.time()
 
-simulation.photon_np_array = np.load("photon-map_6,250,000-photons.npy", allow_pickle=False)
+simulation.photon_np_array = np.load("photon-map_625,000-photons.npy", allow_pickle=False)
 positions = simulation.photon_np_array["position"]
 simulation.photon_tree = KDTree(positions)
 
@@ -22,8 +22,8 @@ print(f"loaded numpy file after {(time.time() - start):.2f} s = {((time.time() -
 # plot_histogram(simulation.photon_np_array[simulation.photon_np_array["reflection"] == False]["time"] / 10, bins=1250, title="Time of stored reflection photons", xlabel="Time")
 
 start = time.time()
-photons_per_batch = 5_000
-batches = 10
+photons_per_batch = 20_000
+batches = 25
 steps = 1000
 
 profiler = cProfile.Profile()

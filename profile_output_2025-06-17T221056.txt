@@ -1,0 +1,626 @@
+Timer unit: 1e-07 s
+
+Total time: 0.0016372 s
+File: D:\data\Richard\.Studium\Dresden\MA 3. Semester\KP Photo\laser_bathymetry_simulator\utils\gpt_ffscatter.py
+Function: generate_ff_phase_function at line 6
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+     6                                           @profile
+     7                                           def generate_ff_phase_function(n_ff=1.1, M=18000):
+     8                                               """
+     9                                               Generate the Fournier-Forand phase function with given parameters.
+    10                                               """
+    11                                               # Scattering angle from 0 to pi
+    12         1       1939.0   1939.0     11.8      theta = np.linspace(0, np.pi, M)
+    13         1       2013.0   2013.0     12.3      mu = np.cos(theta)  # Cosine of scattering angle
+    14                                           
+    15                                               # Simple Fournier-Forand phase function approximation (single parameter version)
+    16                                               # p(theta) = 1 / (1 + (n_ff * theta)^2)^(1.5)
+    17         1       5868.0   5868.0     35.8      ff_phase = 1 / (1 + (n_ff * theta)**2)**1.5
+    18                                           
+    19                                               # Normalize so integral over sphere is 1
+    20         1       1992.0   1992.0     12.2      sin_theta = np.sin(theta)
+    21         1       4385.0   4385.0     26.8      normalization = np.trapezoid(ff_phase * sin_theta * 2 * np.pi, theta)
+    22         1        162.0    162.0      1.0      ff_phase /= normalization
+    23                                           
+    24         1         13.0     13.0      0.1      return theta, ff_phase
+
+Total time: 4.2549 s
+File: D:\data\Richard\.Studium\Dresden\MA 3. Semester\KP Photo\laser_bathymetry_simulator\simulation.py
+Function: store_photons at line 99
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+    99                                               @profile
+   100                                               def store_photons(
+   101                                                   self,
+   102                                                   positions: NDArray[np.float32],
+   103                                                   directions: NDArray[np.float32],
+   104                                                   energies: NDArray[np.float32],
+   105                                                   time_steps: NDArray[np.float32],
+   106                                                   reflection: bool,
+   107                                                   already_reflected = None
+   108                                               ) -> None:
+   109    123390     959301.0      7.8      2.3          n = positions.shape[0]
+   110    123390   26152827.0    212.0     61.5          new_photons = np.empty(n, dtype=photon_dtype)
+   111    123390     405797.0      3.3      1.0          if already_reflected is None:
+   112     70280    5747707.0     81.8     13.5              already_reflected = np.full(n, True)
+   113    123390    2406192.0     19.5      5.7          new_photons["position"] = positions
+   114    123390    1219597.0      9.9      2.9          new_photons["direction"] = directions
+   115    123390     952854.0      7.7      2.2          new_photons["energy"] = energies
+   116    123390     779897.0      6.3      1.8          new_photons["time"] = time_steps
+   117    123390    1412066.0     11.4      3.3          new_photons["reflection"] = reflection
+   118    123390    1082757.0      8.8      2.5          new_photons["already_reflected"] = already_reflected
+   119                                           
+   120    123390    1430032.0     11.6      3.4          self.photon_batches.append(new_photons)
+
+Total time: 11.2202 s
+File: D:\data\Richard\.Studium\Dresden\MA 3. Semester\KP Photo\laser_bathymetry_simulator\simulation.py
+Function: handle_enter_exit_water_refraction at line 563
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+   563                                               @profile
+   564                                               def handle_enter_exit_water_refraction(
+   565                                                   self,
+   566                                                   positions: NDArray[np.float32],
+   567                                                   next_positions: NDArray[np.float32],
+   568                                                   directions: NDArray[np.float32],
+   569                                                   scatter_distances: NDArray[np.float32],
+   570                                                   n1: float,
+   571                                                   n2: float,
+   572                                                   invert_normals: bool,
+   573                                                   forward: bool,
+   574                                               ) -> Tuple[NDArray[np.float32], NDArray[np.float32], NDArray[np.float32], NDArray[np.float32]]:
+   575                                                   """
+   576                                                   Handle refraction or reflection at a flat water surface.
+   577                                           
+   578                                                   Args:
+   579                                                       positions: (N, 3) current photon positions
+   580                                                       next_positions: (N, 3) next positions
+   581                                                       directions: (N, 3) current directions (normalized)
+   582                                                       n1: refractive index of current medium (e.g. air)
+   583                                                       n2: refractive index of next medium (e.g. water)
+   584                                                       invert_normals: True if photon is exiting the water
+   585                                                       forward: Whether this is forward time stepping
+   586                                                       attenuation_coefficient: Used to sample scattering distances (only when entering water)
+   587                                           
+   588                                                   Returns:
+   589                                                       - updated positions (after water interaction)
+   590                                                       - updated directions
+   591                                                       - intersection points with water surface
+   592                                                       - scattering distances (np.inf if photon is reflected or not entering water)
+   593                                                   """
+   594                                           
+   595     58822   13442306.0    228.5     12.0          normals = np.tile(np.array([[0, -1 if invert_normals else 1, 0]], dtype=np.float32), (len(positions), 1))
+   596                                           
+   597     58822    1163328.0     19.8      1.0          step = next_positions - positions
+   598     58822     575172.0      9.8      0.5          y0 = positions[:, 1]
+   599     58822     324124.0      5.5      0.3          dy = step[:, 1]
+   600                                           
+   601    117644    8509069.0     72.3      7.6          with np.errstate(divide='ignore', invalid='ignore'):
+   602     58822    2209716.0     37.6      2.0              f = (self.water_surface_y - y0) / dy
+   603     58822    9392360.0    159.7      8.4              f = np.clip(f, 0.0, 1.0)
+   604                                           
+   605     58822    3349261.0     56.9      3.0          intersection = positions + f[:, np.newaxis] * step
+   606                                           
+   607                                                   # Refraction calculation
+   608     58822     285256.0      4.8      0.3          eta = n1 / n2
+   609     58822     210082.0      3.6      0.2          I = directions
+   610     58822     141556.0      2.4      0.1          N = normals
+   611                                           
+   612     58822    9330035.0    158.6      8.3          cos_i = -np.einsum('ij,ij->i', I, N)
+   613     58822    4552847.0     77.4      4.1          k = 1.0 - eta**2 * (1.0 - cos_i**2)
+   614     58822    1468245.0     25.0      1.3          tir_mask = k < 0.0  # total internal reflection
+   615                                           
+   616                                                   # Reflected directions
+   617     58822    7894097.0    134.2      7.0          reflected_dirs = I - 2 * np.einsum('ij,ij->i', I, N)[:, None] * N
+   618                                           
+   619                                                   # Refracted directions
+   620     58822    2548228.0     43.3      2.3          sqrt_k = np.sqrt(np.maximum(k, 0.0))
+   621     58822    4216341.0     71.7      3.8          refracted_dirs = eta * I + (eta * cos_i - sqrt_k)[:, None] * N
+   622                                           
+   623                                                   # Choose final direction
+   624     58822    3749312.0     63.7      3.3          new_directions = np.where(tir_mask[:, None], reflected_dirs, refracted_dirs)
+   625                                           
+   626                                                   # Continue step into medium
+   627     58822   15169262.0    257.9     13.5          step_lengths = np.linalg.norm(step, axis=1)
+   628     58822    1173092.0     19.9      1.0          remaining_fraction = 1.0 - f
+   629     58822    2282852.0     38.8      2.0          remaining_step = new_directions * (remaining_fraction[:, None] * step_lengths[:, None])
+   630     58822     692156.0     11.8      0.6          final_positions = intersection + remaining_step
+   631                                           
+   632                                                   # Scatter distances: only for refraction into water
+   633     58822     316066.0      5.4      0.3          if not invert_normals:
+   634        40       2032.0     50.8      0.0              refracted_mask = ~tir_mask
+   635                                                       # matlab uses: rand = 1 - np.exp(-self.rng.random(np.count_nonzero(refracted_mask)).astype(np.float32))
+   636        40      21257.0    531.4      0.0              rand = self.rng.random(np.count_nonzero(refracted_mask)).astype(np.float32)
+   637        40      15367.0    384.2      0.0              dpath = -np.log(rand) / self.world_settings.lidar_attenuation_coefficient
+   638        40       4187.0    104.7      0.0              scatter_distances[refracted_mask] = dpath.astype(np.float32)
+   639                                           
+   640     58822   19164474.0    325.8     17.1          return final_positions, np_vec.normalize_batch(new_directions), scatter_distances, intersection
+
+Total time: 21.8821 s
+File: D:\data\Richard\.Studium\Dresden\MA 3. Semester\KP Photo\laser_bathymetry_simulator\utils\gpt_ffscatter.py
+Function: build_rotation_matrices at line 174
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+   174                                           @profile
+   175                                           def build_rotation_matrices(incoming_dirs):
+   176                                               """
+   177                                               Vectorized construction of rotation matrices to align local +z with incoming_dirs.
+   178                                               
+   179                                               Parameters:
+   180                                                   incoming_dirs: (N, 3) array of incoming unit direction vectors.
+   181                                                   
+   182                                               Returns:
+   183                                                   rotation_matrices: (N, 3, 3) array of rotation matrices.
+   184                                               """
+   185     70280     609795.0      8.7      0.3      N = incoming_dirs.shape[0]
+   186     70280   25447925.0    362.1     11.6      w = incoming_dirs / np.linalg.norm(incoming_dirs, axis=1, keepdims=True)  # (N, 3)
+   187                                           
+   188                                               # Choose "up" vector adaptively to avoid numerical instability
+   189     70280    4607462.0     65.6      2.1      use_z_up = np.abs(w[:, 2]) < 0.99
+   190     70280    7979902.0    113.5      3.6      up = np.zeros_like(w)
+   191     70280    6666316.0     94.9      3.0      up[use_z_up] = np.array([0, 0, 1])
+   192     70280    3597423.0     51.2      1.6      up[~use_z_up] = np.array([1, 0, 0])
+   193                                           
+   194     70280   74729449.0   1063.3     34.2      u = np.cross(up, w)
+   195     70280   18974602.0    270.0      8.7      u /= np.linalg.norm(u, axis=1, keepdims=True)
+   196                                           
+   197     70280   63246265.0    899.9     28.9      v = np.cross(w, u)
+   198                                           
+   199                                               # Stack u, v, w as rotation matrix columns
+   200     70280   12158060.0    173.0      5.6      rotation_matrices = np.stack((u, v, w), axis=2)  # shape (N, 3, 3)
+   201     70280     804294.0     11.4      0.4      return rotation_matrices
+
+Total time: 69.2254 s
+File: D:\data\Richard\.Studium\Dresden\MA 3. Semester\KP Photo\laser_bathymetry_simulator\utils\gpt_ffscatter.py
+Function: sample_scattering_directions_batch at line 124
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+   124                                           @profile
+   125                                           def sample_scattering_directions_batch(ff_phase, theta, incoming_dirs, rng: np.random.Generator):
+   126                                               """
+   127                                               Vectorized batch sampling of scattering directions for arbitrary incoming directions.
+   128                                               
+   129                                               Parameters:
+   130                                                   ff_phase: Phase function values
+   131                                                   theta: Angle array (same length as ff_phase)
+   132                                                   incoming_dirs: (N, 3) array of unit vectors representing incoming photon directions
+   133                                                   
+   134                                               Returns:
+   135                                                   directions: (N, 3) numpy array of scattered unit direction vectors
+   136                                               """
+   137     70280     878744.0     12.5      0.1      N = incoming_dirs.shape[0]
+   138                                           
+   139                                               # CDF for inverse transform sampling
+   140     70280  140763059.0   2002.9     20.3      cdf = np.cumsum(ff_phase * np.sin(theta))
+   141     70280    7389575.0    105.1      1.1      cdf /= cdf[-1]
+   142     70280  203237106.0   2891.8     29.4      inverse_cdf = interp1d(cdf, theta, kind='linear', bounds_error=False, fill_value=(theta[0], theta[-1]))
+   143                                           
+   144                                               # Sample scattering angles
+   145     70280    7377523.0    105.0      1.1      random_vals = rng.random(N)
+   146     70280   48528918.0    690.5      7.0      scatter_theta = inverse_cdf(random_vals)
+   147     70280    7919231.0    112.7      1.1      scatter_phi = rng.uniform(0, 2 * np.pi, size=N)
+   148                                           
+   149                                               # Local frame scattering vectors (z-aligned frame)
+   150     70280    4100663.0     58.3      0.6      x_local = np.sin(scatter_theta) * np.cos(scatter_phi)
+   151     70280    2257526.0     32.1      0.3      y_local = np.sin(scatter_theta) * np.sin(scatter_phi)
+   152     70280     853264.0     12.1      0.1      z_local = np.cos(scatter_theta)
+   153     70280   20096435.0    285.9      2.9      local_dirs = np.stack((x_local, y_local, z_local), axis=1)
+   154                                           
+   155                                               # Build rotation matrices per photon
+   156                                               # rotation_matrices = np.array([compute_rotation_matrix(v) for v in incoming_dirs])  # (N, 3, 3)
+   157     70280  229705670.0   3268.4     33.2      rotation_matrices = build_rotation_matrices(incoming_dirs)
+   158                                           
+   159                                               # Apply rotations: batched matrix-vector multiplication
+   160     70280   18278892.0    260.1      2.6      directions = np.einsum('nij,nj->ni', rotation_matrices, local_dirs)
+   161     70280     867455.0     12.3      0.1      return directions
+
+Total time: 110.026 s
+File: D:\data\Richard\.Studium\Dresden\MA 3. Semester\KP Photo\laser_bathymetry_simulator\simulation.py
+Function: handle_seafloor_reflection at line 523
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+   523                                               @profile
+   524                                               def handle_seafloor_reflection(
+   525                                                   self,
+   526                                                   positions: NDArray[np.float32],
+   527                                                   next_positions: NDArray[np.float32],
+   528                                                   directions: NDArray[np.float32],
+   529                                                   energies: NDArray[np.float32],
+   530                                                   already_reflected: NDArray,
+   531                                                   forward: bool
+   532                                               ) -> Tuple[NDArray[np.float32], NDArray[np.float32], NDArray[np.float32], NDArray[np.float32]]:
+   533     53110    1284502.0     24.2      0.1          step = next_positions - positions
+   534     53110     526751.0      9.9      0.0          y0 = positions[:, 1]
+   535     53110     322725.0      6.1      0.0          dy = step[:, 1]
+   536                                           
+   537    106220   10252561.0     96.5      0.9          with np.errstate(divide='ignore', invalid='ignore'):
+   538     53110    2170784.0     40.9      0.2              f = (self.seafloor_y - y0) / dy
+   539     53110   10818302.0    203.7      1.0              f = np.clip(f, 0.0, 1.0)
+   540                                           
+   541     53110    3155541.0     59.4      0.3          intersection = positions + f[:, np.newaxis] * step
+   542     53110   13636539.0    256.8      1.2          normals = np.tile(np.array([[0, 1, 0]], dtype=np.float32), (len(positions), 1))
+   543                                           
+   544                                                   # Sample reflection directions toward the sensor
+   545     53110 1010548718.0  19027.5     91.8          reflected_dirs = self.seafloor_reflection_function_batch(directions, normals)
+   546                                           
+   547     53110   14356564.0    270.3      1.3          step_lengths = np.linalg.norm(step, axis=1)
+   548     53110    1403020.0     26.4      0.1          remaining_fraction = 1.0 - f
+   549     53110    2893326.0     54.5      0.3          remaining_step = reflected_dirs * (remaining_fraction[:, np.newaxis] * step_lengths[:, np.newaxis])
+   550                                           
+   551     53110    1340348.0     25.2      0.1          final_positions = intersection + remaining_step
+   552                                           
+   553     53110     184814.0      3.5      0.0          if forward:
+   554     53110   20928654.0    394.1      1.9              self.store_photons(intersection, directions, energies, f + self.current_step, True, already_reflected)
+   555                                                   else:
+   556                                                       self.sample_photons(intersection, directions, energies, f + self.current_step, True)
+   557                                           
+   558     53110    1667386.0     31.4      0.2          energies *= self.world_settings.seafloor_albedo
+   559     53110    3909798.0     73.6      0.4          already_reflected = np.full(len(energies), True)
+   560                                           
+   561     53110     857771.0     16.2      0.1          return final_positions, reflected_dirs, energies, intersection, already_reflected
+
+Total time: 114.095 s
+File: D:\data\Richard\.Studium\Dresden\MA 3. Semester\KP Photo\laser_bathymetry_simulator\simulation.py
+Function: handle_water_scatter at line 642
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+   642                                               @profile
+   643                                               def handle_water_scatter(
+   644                                                   self,
+   645                                                   positions: NDArray[np.float32],
+   646                                                   next_positions: NDArray[np.float32],
+   647                                                   directions: NDArray[np.float32],
+   648                                                   energies: NDArray[np.float32],
+   649                                                   scatter_distances: NDArray[np.float32],
+   650                                                   forward: bool
+   651                                               ) -> Tuple[NDArray[np.float32], NDArray[np.float32], NDArray[np.float32], NDArray[np.float32], NDArray[np.float32]]:
+   652                                                   """
+   653                                                   Handle scattering and general traversing in water.
+   654                                           
+   655                                                   Returns:
+   656                                                       new_positions, new_directions, new_energies, scatter_points, new_scatter_distances
+   657                                                   """
+   658                                           
+   659     73210   14228164.0    194.3      1.2          step_vectors = next_positions - positions
+   660     73210   92436810.0   1262.6      8.1          step_lengths = np.linalg.norm(step_vectors, axis=1)
+   661                                                   # print(step_lengths.mean())
+   662                                                   
+   663     73210    4074655.0     55.7      0.4          scatter_occurs = scatter_distances <= step_lengths
+   664     73210    2831091.0     38.7      0.2          no_scatter = ~scatter_occurs
+   665                                           
+   666                                                   # Allocate outputs
+   667     73210    3240110.0     44.3      0.3          new_positions = np.empty_like(positions)
+   668     73210    8826872.0    120.6      0.8          new_directions = directions.copy()
+   669     73210    2669077.0     36.5      0.2          new_energies = energies.copy()
+   670     73210   16949076.0    231.5      1.5          scatter_points = np.full_like(positions, np.nan)
+   671     73210    3057923.0     41.8      0.3          new_scatter_distances = scatter_distances.copy()
+   672                                           
+   673                                                   # --- No scatter: move fully
+   674     73210  126100762.0   1722.5     11.1          new_positions[no_scatter] = next_positions[no_scatter]
+   675     73210   14337057.0    195.8      1.3          new_scatter_distances[no_scatter] -= step_lengths[no_scatter]
+   676                                           
+   677                                                   # if not forward:
+   678                                                   #     self.sample_photons(positions[no_scatter], directions[no_scatter], energies[no_scatter], np.full(len(positions[no_scatter]), self.current_step), False)
+   679                                           
+   680                                                   # --- Scatter case
+   681     73210   17923936.0    244.8      1.6          if np.any(scatter_occurs):
+   682     70280    6662740.0     94.8      0.6              idx = np.nonzero(scatter_occurs)[0]
+   683     70280    3341316.0     47.5      0.3              t = scatter_distances[idx] / step_lengths[idx]
+   684     70280    6705827.0     95.4      0.6              scatter_vec = step_vectors[idx] * t[:, None]
+   685     70280    3321150.0     47.3      0.3              scatter_pos = positions[idx] + scatter_vec
+   686     70280    1956957.0     27.8      0.2              scatter_points[idx] = scatter_pos
+   687                                           
+   688                                                       # Random azimuth and longitudinal angle (based on ff phase function)
+   689                                                       # f2 = self.rng.uniform(0, 2 * np.pi, size=len(idx)).astype(np.float32)
+   690                                                       # rand_ct = self.rng.random(len(idx)).astype(np.float32)
+   691                                                       # ct2 = np.interp(rand_ct, self.world_settings.ff_phase_cdf, self.world_settings.ct_r).astype(np.float32)
+   692                                           
+   693                                                       # ux2 = directions[idx][:, 0]
+   694                                                       # uy2 = directions[idx][:, 1]
+   695                                                       # uz2 = directions[idx][:, 2]
+   696                                           
+   697                                                       # same_z_mask = np.abs(uz2) > 0.99999
+   698                                                       # new_dir = np.empty((len(idx), 3), dtype=np.float32)
+   699                                           
+   700                                                       # sin_ct2 = np.sin(ct2)
+   701                                                       # cos_ct2 = np.cos(ct2)
+   702                                           
+   703                                                       # # Case 1: nearly aligned with Z
+   704                                                       # new_dir[same_z_mask, 0] = sin_ct2[same_z_mask] * np.cos(f2[same_z_mask])
+   705                                                       # new_dir[same_z_mask, 1] = sin_ct2[same_z_mask] * np.sin(f2[same_z_mask])
+   706                                                       # new_dir[same_z_mask, 2] = np.sign(uz2[same_z_mask]) * cos_ct2[same_z_mask]
+   707                                           
+   708                                                       # # Case 2: general case
+   709                                                       # not_same_z = ~same_z_mask
+   710                                                       # denom = np.sqrt(1 - uz2[not_same_z]**2)
+   711                                                       # sin_f2 = np.sin(f2[not_same_z])
+   712                                                       # cos_f2 = np.cos(f2[not_same_z])
+   713                                           
+   714                                                       # new_dir[not_same_z, 0] = (
+   715                                                       #     sin_ct2[not_same_z] * (
+   716                                                       #         ux2[not_same_z] * uz2[not_same_z] * cos_f2 -
+   717                                                       #         uy2[not_same_z] * sin_f2
+   718                                                       #     ) / denom +
+   719                                                       #     ux2[not_same_z] * cos_ct2[not_same_z]
+   720                                                       # )
+   721                                                       # new_dir[not_same_z, 1] = (
+   722                                                       #     sin_ct2[not_same_z] * (
+   723                                                       #         uy2[not_same_z] * uz2[not_same_z] * cos_f2 +
+   724                                                       #         ux2[not_same_z] * sin_f2
+   725                                                       #     ) / denom +
+   726                                                       #     uy2[not_same_z] * cos_ct2[not_same_z]
+   727                                                       # )
+   728                                                       # new_dir[not_same_z, 2] = (
+   729                                                       #     -sin_ct2[not_same_z] * denom * cos_f2 +
+   730                                                       #     uz2[not_same_z] * cos_ct2[not_same_z]
+   731                                                       # )
+   732                                           
+   733                                                       # # Normalize directions
+   734                                                       # new_dir = np_vec.normalize_batch(new_dir)
+   735                                                       # new_directions[idx] = new_dir
+   736     70280  738031901.0  10501.3     64.7              new_dir = np_vec.normalize_batch(sample_scattering_directions_batch(self.ff_phase, self.ff_theta, directions[idx], self.rng))
+   737     70280    3546097.0     50.5      0.3              new_directions[idx] = new_dir
+   738                                           
+   739                                                       # Energy loss due to scattering
+   740     70280    4707172.0     67.0      0.4              new_energies[idx] *= (self.world_settings.attenuation_per_scatter)
+   741                                           
+   742                                                       # Move remaining distance after scattering
+   743     70280    1926007.0     27.4      0.2              remaining_fraction = 1.0 - t
+   744     70280    1330593.0     18.9      0.1              remaining_distance = remaining_fraction * step_lengths[idx]
+   745     70280    4128351.0     58.7      0.4              final_positions = scatter_pos + new_dir * remaining_distance[:, None]
+   746                                           
+   747     70280    2333144.0     33.2      0.2              new_positions[idx] = final_positions
+   748                                           
+   749                                                       # Resample new scatter distances
+   750                                                       # matlab uses: rand_vals = 1 - np.exp(-self.rng.random(len(idx)).astype(np.float32))
+   751     70280    3844589.0     54.7      0.3              rand_vals = self.rng.random(len(idx)).astype(np.float32)
+   752     70280    6552838.0     93.2      0.6              new_scatter_distances[idx] = -np.log(rand_vals) / self.world_settings.lidar_attenuation_coefficient
+   753                                                       
+   754     70280     305709.0      4.3      0.0              if forward:
+   755     70280   43733551.0    622.3      3.8                  self.store_photons(scatter_points[idx], directions[idx], energies[idx], t + self.current_step, False)
+   756                                                       else:
+   757                                                           self.sample_photons(scatter_points[idx], directions[idx], energies[idx], t + self.current_step, False)
+   758                                           
+   759     73210    1848863.0     25.3      0.2          return new_positions, new_directions, new_energies, new_scatter_distances, scatter_points
+
+Total time: 720.383 s
+File: D:\data\Richard\.Studium\Dresden\MA 3. Semester\KP Photo\laser_bathymetry_simulator\simulation.py
+Function: simulate_photon_step at line 375
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+   375                                               @profile
+   376                                               def simulate_photon_step(
+   377                                                   self,
+   378                                                   positions: NDArray[np.float32],         # (N, 3)
+   379                                                   directions: NDArray[np.float32],        # (N, 3)
+   380                                                   velocities: NDArray[np.float32],        # (N,)
+   381                                                   energies: NDArray[np.float32],          # (N,)
+   382                                                   scatter_distances: NDArray[np.float32], # (N,)
+   383                                                   already_reflected: NDArray,             # (N,)
+   384                                                   forward: bool
+   385                                               ) -> Tuple[
+   386                                                   NDArray[np.float32], NDArray[np.float32], NDArray[np.float32],
+   387                                                   NDArray[np.float32], NDArray[np.float32], NDArray[np.float32], NDArray
+   388                                               ]:
+   389                                                   """
+   390                                                   Simulates a single time step of photon movement and scattering,
+   391                                                   using batch processing and index tracking for speed.
+   392                                                   """
+   393    125000    1760195.0     14.1      0.0          N = positions.shape[0]
+   394    125000  397369593.0   3179.0      5.5          next_positions = positions + directions * velocities[:, np.newaxis] * self.time_step
+   395    125000   32512360.0    260.1      0.5          interaction_points = np.full_like(positions, np.nan, dtype=np.float32)
+   396                                           
+   397    125000    1676438.0     13.4      0.0          y_current = positions[:, 1]
+   398    125000     930313.0      7.4      0.0          y_next = next_positions[:, 1]
+   399                                           
+   400                                                   # Vectorized state evaluation
+   401    125000   28816063.0    230.5      0.4          states = np.full(N, PhotonState.IN_AIR.value, dtype=np.int32)
+   402    125000  102241995.0    817.9      1.4          states = np.where((y_current > self.water_surface_y) & (y_next <= self.water_surface_y), PhotonState.ENTERING_WATER.value, states)
+   403    125000   83269018.0    666.2      1.2          states = np.where((y_current <= self.water_surface_y) & (y_next > self.seafloor_y), PhotonState.IN_WATER.value, states)
+   404    125000   82736326.0    661.9      1.1          states = np.where((y_current > self.seafloor_y) & (y_next <= self.seafloor_y), PhotonState.HITTING_SEAFLOOR.value, states)
+   405    125000   81520019.0    652.2      1.1          states = np.where((y_current <= self.water_surface_y) & (y_next > self.water_surface_y), PhotonState.EXITING_WATER.value, states)
+   406                                           
+   407                                                   # Sort photons by state for efficient block processing
+   408    125000  309109969.0   2472.9      4.3          sorted_indices = np.argsort(states)
+   409    125000   29408271.0    235.3      0.4          original_indices = np.arange(N)
+   410    125000   38861862.0    310.9      0.5          original_indices = original_indices[sorted_indices]
+   411    125000   29976445.0    239.8      0.4          states_sorted = states[sorted_indices]
+   412                                           
+   413                                                   # Reorder all arrays
+   414    125000  342847325.0   2742.8      4.8          positions = positions[sorted_indices]
+   415    125000  347210321.0   2777.7      4.8          directions = directions[sorted_indices]
+   416    125000   34415783.0    275.3      0.5          velocities = velocities[sorted_indices]
+   417    125000   34455621.0    275.6      0.5          energies = energies[sorted_indices]
+   418    125000   34162520.0    273.3      0.5          scatter_distances = scatter_distances[sorted_indices]
+   419    125000   30291669.0    242.3      0.4          already_reflected = already_reflected[sorted_indices]
+   420    125000  347243419.0   2777.9      4.8          next_positions = next_positions[sorted_indices]
+   421    125000  353371405.0   2827.0      4.9          interaction_points = interaction_points[sorted_indices]
+   422                                           
+   423                                                   # Find boundaries for each state
+   424    125000    1581194.0     12.6      0.0          s_vals = [
+   425    125000    9536657.0     76.3      0.1              PhotonState.ENTERING_WATER.value,
+   426    125000    2872963.0     23.0      0.0              PhotonState.IN_WATER.value,
+   427    125000    2904860.0     23.2      0.0              PhotonState.HITTING_SEAFLOOR.value,
+   428    125000    2675421.0     21.4      0.0              PhotonState.EXITING_WATER.value,
+   429    125000    2868998.0     23.0      0.0              PhotonState.EXITING_WATER.value + 1,
+   430                                                   ]
+   431    125000   62104507.0    496.8      0.9          bounds = np.searchsorted(states_sorted, s_vals)
+   432    125000     701417.0      5.6      0.0          air_start = 0
+   433    125000   10777598.0     86.2      0.1          enter_start, water_start, floor_start, exit_start, _ = bounds
+   434                                           
+   435                                                   # State: IN_AIR
+   436    125000   34391344.0    275.1      0.5          positions[air_start:enter_start] = next_positions[air_start:enter_start]
+   437                                           
+   438                                                   # State: ENTERING_WATER
+   439    125000    1864323.0     14.9      0.0          if enter_start < water_start:
+   440        80     467592.0   5844.9      0.0              refracted_pos, refracted_dir, new_scatter_dist, intersection_pts = self.handle_enter_exit_water_refraction(
+   441        40        385.0      9.6      0.0                  positions[enter_start:water_start],
+   442        40        276.0      6.9      0.0                  next_positions[enter_start:water_start],
+   443        40        507.0     12.7      0.0                  directions[enter_start:water_start],
+   444        40        372.0      9.3      0.0                  scatter_distances[enter_start:water_start],
+   445        40        146.0      3.6      0.0                  1,
+   446        40        234.0      5.8      0.0                  self.world_settings.refractive_index_water,
+   447        40        135.0      3.4      0.0                  False,
+   448        40         91.0      2.3      0.0                  forward=forward
+   449                                                       )
+   450        40       3129.0     78.2      0.0              positions[enter_start:water_start] = refracted_pos
+   451        40       1955.0     48.9      0.0              directions[enter_start:water_start] = refracted_dir
+   452        40        366.0      9.2      0.0              scatter_distances[enter_start:water_start] = new_scatter_dist
+   453        40       3041.0     76.0      0.0              interaction_points[enter_start:water_start] = intersection_pts
+   454                                           
+   455                                                   # State: IN_WATER
+   456    125000     634844.0      5.1      0.0          if water_start < floor_start:
+   457    146420 1166254552.0   7965.1     16.2              water_pos, water_dir, water_energy, new_scatter_dist, scatter_pts = self.handle_water_scatter(
+   458     73210     682376.0      9.3      0.0                  positions[water_start:floor_start],
+   459     73210     387210.0      5.3      0.0                  next_positions[water_start:floor_start],
+   460     73210     951244.0     13.0      0.0                  directions[water_start:floor_start],
+   461     73210     561867.0      7.7      0.0                  energies[water_start:floor_start],
+   462     73210     647387.0      8.8      0.0                  scatter_distances[water_start:floor_start],
+   463     73210     169858.0      2.3      0.0                  forward=forward
+   464                                                       )
+   465     73210    6643813.0     90.8      0.1              positions[water_start:floor_start] = water_pos
+   466     73210    6352543.0     86.8      0.1              directions[water_start:floor_start] = water_dir
+   467     73210    2550858.0     34.8      0.0              energies[water_start:floor_start] = water_energy
+   468     73210    2416888.0     33.0      0.0              scatter_distances[water_start:floor_start] = new_scatter_dist
+   469     73210    7014324.0     95.8      0.1              interaction_points[water_start:floor_start] = scatter_pts
+   470                                           
+   471                                                   # State: HITTING_SEAFLOOR
+   472    125000    1005420.0      8.0      0.0          if floor_start < exit_start:
+   473    106220 1110733257.0  10456.9     15.4              refl_pos, refl_dir, refl_energy, intersection_pts, refl_flags = self.handle_seafloor_reflection(
+   474     53110     381817.0      7.2      0.0                  positions[floor_start:exit_start],
+   475     53110     266508.0      5.0      0.0                  next_positions[floor_start:exit_start],
+   476     53110     268973.0      5.1      0.0                  directions[floor_start:exit_start],
+   477     53110     296023.0      5.6      0.0                  energies[floor_start:exit_start],
+   478     53110     332510.0      6.3      0.0                  already_reflected[floor_start:exit_start],
+   479     53110     120851.0      2.3      0.0                  forward=forward
+   480                                                       )
+   481     53110    1070440.0     20.2      0.0              positions[floor_start:exit_start] = refl_pos
+   482     53110     547022.0     10.3      0.0              directions[floor_start:exit_start] = refl_dir
+   483     53110     463864.0      8.7      0.0              energies[floor_start:exit_start] = refl_energy
+   484     53110     519276.0      9.8      0.0              interaction_points[floor_start:exit_start] = intersection_pts
+   485     53110     515909.0      9.7      0.0              already_reflected[floor_start:exit_start] = refl_flags
+   486                                           
+   487                                                   # State: EXITING_WATER
+   488    125000    1027632.0      8.2      0.0          if exit_start < N:
+   489    117564  126706673.0   1077.8      1.8              refracted_pos, refracted_dir, new_scatter_dist, intersection_pts = self.handle_enter_exit_water_refraction(
+   490     58782     455082.0      7.7      0.0                  positions[exit_start:],
+   491     58782     267325.0      4.5      0.0                  next_positions[exit_start:],
+   492     58782     245866.0      4.2      0.0                  directions[exit_start:],
+   493     58782     270877.0      4.6      0.0                  scatter_distances[exit_start:],
+   494     58782     188492.0      3.2      0.0                  self.world_settings.refractive_index_water,
+   495     58782     165863.0      2.8      0.0                  1,
+   496     58782     136235.0      2.3      0.0                  True,
+   497     58782     144644.0      2.5      0.0                  forward=forward
+   498                                                       )
+   499     58782    1012401.0     17.2      0.0              positions[exit_start:] = refracted_pos
+   500     58782     527067.0      9.0      0.0              directions[exit_start:] = refracted_dir
+   501     58782     414251.0      7.0      0.0              scatter_distances[exit_start:] = new_scatter_dist
+   502     58782     489025.0      8.3      0.0              interaction_points[exit_start:] = intersection_pts
+   503                                           
+   504                                                   # Restore original order
+   505    125000  680773604.0   5446.2      9.5          reverse_indices = np.argsort(original_indices)
+   506    125000    5166177.0     41.3      0.1          return (
+   507    125000  348118482.0   2784.9      4.8              positions[reverse_indices],
+   508    125000  355858017.0   2846.9      4.9              directions[reverse_indices],
+   509    125000   36138674.0    289.1      0.5              velocities[reverse_indices],
+   510    125000   34511242.0    276.1      0.5              energies[reverse_indices],
+   511    125000   34537558.0    276.3      0.5              scatter_distances[reverse_indices],
+   512    125000  356628876.0   2853.0      5.0              interaction_points[reverse_indices],
+   513    125000   31308380.0    250.5      0.4              already_reflected[reverse_indices]
+   514                                                   )
+
+Total time: 733.436 s
+File: D:\data\Richard\.Studium\Dresden\MA 3. Semester\KP Photo\laser_bathymetry_simulator\simulation.py
+Function: simulate_batch at line 63
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+    63                                               @profile
+    64                                               def simulate_batch(self, num_photons: int, steps: int, forward: bool = True, num_samples_history: int = 0):
+    65        10         78.0      7.8      0.0          self.current_step = 0
+    66        10        307.0     30.7      0.0          inner_start_time = time.time()
+    67                                           
+    68        10         29.0      2.9      0.0          N = num_photons
+    69        10       5950.0    595.0      0.0          history_samples = self.rng.integers(0, num_photons, num_samples_history)
+    70                                           
+    71        10       4296.0    429.6      0.0          positions = np.zeros((N, 3), dtype=np.float32)
+    72                                           
+    73        10     187894.0  18789.4      0.0          directions = np_vec.sample_directions_in_cone(np.array(self.laser_settings.laser_direction), self.laser_settings.laser_divergence_angle if forward else self.laser_settings.field_of_view, N, self.rng)
+    74                                           
+    75        10       3338.0    333.8      0.0          velocities = np.full(N, self.world_settings.light_speed_air, dtype=np.float32)
+    76        10       2593.0    259.3      0.0          energies = np.full(N, 1, dtype=np.float32)
+    77        10       2536.0    253.6      0.0          scatter_distances = np.full(N, np.inf, dtype=np.float32)
+    78        10       1020.0    102.0      0.0          already_reflected = np.full(N, False, dtype=bool)
+    79                                           
+    80        10        193.0     19.3      0.0          full_histories: List[List[NDArray[np.float32]]] = [[] for _ in range(num_samples_history)]
+    81                                           
+    82        10       1904.0    190.4      0.0          for i, pos in enumerate(positions[history_samples]):
+    83                                                       full_histories[i].append(pos.copy())
+    84                                           
+    85                                           
+    86    125010     716234.0      5.7      0.0          for c_step in range(steps * self.sample_multiplier):
+    87    125000 7320775517.0  58566.2     99.8              positions, directions, velocities, energies, scatter_distances, interaction_points, already_reflected = self.simulate_photon_step(positions, directions, velocities, energies, scatter_distances, already_reflected, forward = forward)
+    88    125000   11262146.0     90.1      0.2              for i, idx in enumerate(history_samples):
+    89                                                           inter = interaction_points[idx]
+    90                                                           if not np.isnan(inter).any():
+    91                                                               full_histories[i].append(inter.copy())  # intermediate point
+    92                                                           full_histories[i].append(positions[idx].copy())  # final position of this step
+    93    125000    1395267.0     11.2      0.0              self.current_step += 1
+    94                                                       # if not forward and ((c_step + 1) / self.sample_multiplier) % 10 == 0:
+    95                                                       #     print(f"current at inner step {(c_step + 1) / self.sample_multiplier} after {(time.time() - inner_start_time):.2f} s = {((time.time() - inner_start_time) / 60):.2f} min")
+    96                                           
+    97        10        228.0     22.8      0.0          return full_histories
+
+Total time: 736.086 s
+File: D:\data\Richard\.Studium\Dresden\MA 3. Semester\KP Photo\laser_bathymetry_simulator\only_forwards.py
+Function: main at line 13
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+    13                                           @profile
+    14                                           def main():
+    15                                               global simulation, rng
+    16         1      47130.0  47130.0      0.0      simulation = Simulation(rng)
+    17         1         41.0     41.0      0.0      start = time.time()
+    18         1          9.0      9.0      0.0      photons_per_batch = 25_000
+    19         1          4.0      4.0      0.0      batches = 10
+    20         1          5.0      5.0      0.0      steps = 1250
+    21         1          4.0      4.0      0.0      visualize_paths = 0
+    22                                           
+    23                                               # profiler = cProfile.Profile()
+    24                                               # profiler.enable()
+    25                                           
+    26        11         81.0      7.4      0.0      for i in range(batches):
+    27        10 7337585943.0    7e+08     99.7          simulation.simulate_batch(photons_per_batch, steps, True, visualize_paths if i == batches - 1 else 0)
+    28        10        158.0     15.8      0.0          if (i+1) % 5 == 0:
+    29         2       8379.0   4189.5      0.0              print(f"{i+1} in {(time.time() - start):.2f} s = {((time.time() - start) / 60):.2f} min, estimated remaining: {((((time.time() - start) / 60) / (i+1)) * (batches - (i + 1))):.2f} min")
+    30                                           
+    31                                               # profiler.disable()
+    32                                           
+    33         1         23.0     23.0      0.0      elapsed = time.time() - start
+    34         1        836.0    836.0      0.0      print(f"time forward: {elapsed:.6f} seconds = {(elapsed / 60):.2f} min")
+    35                                           
+    36                                               # stats = pstats.Stats(profiler).sort_stats('tottime')
+    37                                               # stats.print_stats(30)  # Top 30 functions
+    38                                           
+    39         1   23221664.0    2e+07      0.3      simulation.photon_np_array = np.concatenate(simulation.photon_batches)
+
+  0.00 seconds - D:\data\Richard\.Studium\Dresden\MA 3. Semester\KP Photo\laser_bathymetry_simulator\utils\gpt_ffscatter.py:6 - generate_ff_phase_function
+  4.25 seconds - D:\data\Richard\.Studium\Dresden\MA 3. Semester\KP Photo\laser_bathymetry_simulator\simulation.py:99 - store_photons
+ 11.22 seconds - D:\data\Richard\.Studium\Dresden\MA 3. Semester\KP Photo\laser_bathymetry_simulator\simulation.py:563 - handle_enter_exit_water_refraction
+ 21.88 seconds - D:\data\Richard\.Studium\Dresden\MA 3. Semester\KP Photo\laser_bathymetry_simulator\utils\gpt_ffscatter.py:174 - build_rotation_matrices
+ 69.23 seconds - D:\data\Richard\.Studium\Dresden\MA 3. Semester\KP Photo\laser_bathymetry_simulator\utils\gpt_ffscatter.py:124 - sample_scattering_directions_batch
+110.03 seconds - D:\data\Richard\.Studium\Dresden\MA 3. Semester\KP Photo\laser_bathymetry_simulator\simulation.py:523 - handle_seafloor_reflection
+114.10 seconds - D:\data\Richard\.Studium\Dresden\MA 3. Semester\KP Photo\laser_bathymetry_simulator\simulation.py:642 - handle_water_scatter
+720.38 seconds - D:\data\Richard\.Studium\Dresden\MA 3. Semester\KP Photo\laser_bathymetry_simulator\simulation.py:375 - simulate_photon_step
+733.44 seconds - D:\data\Richard\.Studium\Dresden\MA 3. Semester\KP Photo\laser_bathymetry_simulator\simulation.py:63 - simulate_batch
+736.09 seconds - D:\data\Richard\.Studium\Dresden\MA 3. Semester\KP Photo\laser_bathymetry_simulator\only_forwards.py:13 - main

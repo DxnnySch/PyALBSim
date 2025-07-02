@@ -1,7 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
+from line_profiler import profile
 
+@profile
 def generate_ff_phase_function(n_ff=1.1, M=18000):
     """
     Generate the Fournier-Forand phase function with given parameters.
@@ -21,6 +23,37 @@ def generate_ff_phase_function(n_ff=1.1, M=18000):
 
     return theta, ff_phase
 
+def generate_parametric_ff_phase_function(n=1.05, mu=3.5, M=18000):
+    """
+    Generate the normalized Fournier-Forand phase function.
+    
+    Parameters:
+        n (float): Refractive index of particles (e.g., 1.05–1.20)
+        mu (float): Junge slope (typical: 3–5)
+        M (int): Number of angular samples
+    
+    Returns:
+        theta (ndarray): Scattering angles [radians]
+        p_theta (ndarray): Normalized phase function p(theta)
+    """
+    theta = np.linspace(0, np.pi, M)
+    cos_theta = np.cos(theta)
+
+    # Compute delta and v from n and mu
+    delta = 1 / (1 + 0.5 * (n - 1)**2)
+    v = (3 - mu) / 2
+
+    # FF phase function (simplified normalized form)
+    p_theta = (1 - delta**2) / (4 * np.pi * (1 + delta**2 - 2 * delta * cos_theta)**v)
+
+    # Optional: Normalize numerically to correct any discretization error
+    sin_theta = np.sin(theta)
+    integral = np.trapezoid(p_theta * sin_theta * 2 * np.pi, theta)
+    p_theta /= integral
+
+    return theta, p_theta
+
+
 def plot_phase_function(theta, ff_phase):
     """
     Visualize the phase function on a semilog scale.
@@ -34,6 +67,7 @@ def plot_phase_function(theta, ff_phase):
     plt.tight_layout()
     plt.show()
 
+@profile
 def sample_scattering_direction(ff_phase, theta):
     """
     Sample a new scattering direction from the phase function.
@@ -58,6 +92,7 @@ def spherical_to_cartesian(theta, phi):
     z = np.cos(theta)
     return np.array([x, y, z])
 
+@profile
 def scatter_energy(ff_phase, theta, a_dir, b_dir):
     """
     Given two directions (unit vectors), compute scattering probability.
@@ -117,6 +152,7 @@ def scatter_energy(ff_phase, theta, a_dir, b_dir):
 #     directions = np.einsum('nij,nj->ni', rotation_matrices, local_dirs)
 #     return directions
 
+@profile
 def sample_scattering_directions_batch(ff_phase, theta, incoming_dirs, rng: np.random.Generator):
     """
     Vectorized batch sampling of scattering directions for arbitrary incoming directions.
@@ -156,6 +192,7 @@ def sample_scattering_directions_batch(ff_phase, theta, incoming_dirs, rng: np.r
     return directions
 
 # Rotate local_dir into incoming_dir frame
+@profile
 def compute_rotation_matrix(v):
     """Construct orthonormal basis (u, v, w) where w = v (z'), u is arbitrary orthogonal."""
     w = v / np.linalg.norm(v)
@@ -165,6 +202,7 @@ def compute_rotation_matrix(v):
     v_ = np.cross(w, u)
     return np.stack((u, v_, w), axis=1)  # 3x3 rotation matrix
 
+@profile
 def build_rotation_matrices(incoming_dirs):
     """
     Vectorized construction of rotation matrices to align local +z with incoming_dirs.
@@ -200,16 +238,27 @@ if __name__ == "__main__":
     M = 18000
 
     theta, ff_phase = generate_ff_phase_function(n_ff=n_ff, M=M)
-    plot_phase_function(theta, ff_phase)
+    cdf = np.cumsum(ff_phase * np.sin(theta))
+    cdf /= cdf[-1]
+    theta2, parametric_ff_phase = generate_parametric_ff_phase_function(n_ff, 3.5, M)
+    # plot_phase_function(theta, ff_phase)
+    plt.figure(figsize=(8, 4))
+    plt.semilogx(np.degrees(theta), cdf)
+    plt.xlabel('Scattering Angle (degrees)')
+    plt.ylabel('Phase Function p(theta)')
+    plt.title('Fournier-Forand Phase Function')
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
 
     # Sample a scattering direction
-    scatter_theta, scatter_phi = sample_scattering_direction(ff_phase, theta)
-    scatter_dir = spherical_to_cartesian(scatter_theta, scatter_phi)
+    # scatter_theta, scatter_phi = sample_scattering_direction(ff_phase, theta)
+    # scatter_dir = spherical_to_cartesian(scatter_theta, scatter_phi)
 
-    # Compute energy between two directions
-    a_dir = np.array([0, 0, 1])  # forward
-    b_dir = scatter_dir         # sampled
-    energy = scatter_energy(ff_phase, theta, a_dir, b_dir)
+    # # Compute energy between two directions
+    # a_dir = np.array([0, 0, 1])  # forward
+    # b_dir = scatter_dir         # sampled
+    # energy = scatter_energy(ff_phase, theta, a_dir, b_dir)
 
-    print(f"Sampled scattering direction: theta = {np.degrees(scatter_theta):.2f}°, phi = {np.degrees(scatter_phi):.2f}°")
-    print(f"Scattering energy (probability density): {energy:.4e}")
+    # print(f"Sampled scattering direction: theta = {np.degrees(scatter_theta):.2f}°, phi = {np.degrees(scatter_phi):.2f}°")
+    # print(f"Scattering energy (probability density): {energy:.4e}")

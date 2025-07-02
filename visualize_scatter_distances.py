@@ -15,4 +15,7 @@ rand_vals = rng.random(10000).astype(np.float32)
 # matlab uses: rand_vals = 1 - np.exp(-rng.random(10000).astype(np.float32))
 dist = -np.log(rand_vals) / world_settings.lidar_attenuation_coefficient
 
+print(f"mean: {dist.mean()}")
+print(f"median: {np.median(dist)}")
+
 plot_histogram(dist, bins=500, title="Distribution of scatter distances", xlabel="Distance (m)")

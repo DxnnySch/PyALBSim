@@ -18,7 +18,7 @@ class World:
         self.salinity_unit = 37; # salinity unit. The salt content in pure seawater. S is generally 37 ppt (Pure water is 0 ppt).
         self.seawater_molecular_scattering_coefficient = (1 + 0.008027 * self.salinity_unit) * 0.00012 * laser_settings.laser_wavelength**(-4.24); # Seawater Molecular Scattering Coefficient
         self.particle_scattering_coefficient = self.total_scattering_coefficient - self.seawater_molecular_scattering_coefficient; # Particle scattering coefficient
-        self.seafloor_albedo = 0.5 # how much energy is reflected of the sea floor (how much is not absorbed)
+        self.seafloor_albedo = 0.15 # how much energy is reflected of the sea floor (how much is not absorbed)
 
         # FF scattering phase function parameter settings---CORE
         # User parameters (Mobley,2002)
@@ -32,13 +32,15 @@ class World:
         laser_spot_radius_surface = camera_settings.flying_height * math.tan(laser_settings.laser_divergence_angle / 2) # laser beam spot radius on the sea surface. m
         # Optical parameters of water body--- kd Diffuse attenuation coefficient
         laser_spot_diameter_surface = 2 * laser_spot_radius_surface # the lidar spot diameter on the surface
-        kd = self.total_scattering_coefficient + 4.18 * self.particle_scattering_coefficient * self.back_scatter_proportion * (1 - 0.52 * math.exp(-10.8 * self.total_scattering_coefficient)) # Diffuse attenuation coefficient (Churnside, 2014)
-        self.lidar_attenuation_coefficient = kd + (self.particle_scattering_coefficient - 4.18 * self.particle_scattering_coefficient * self.back_scatter_proportion * (1 - 0.52 * math.exp(-10.8 * self.total_scattering_coefficient))) * math.exp(-0.85 * laser_spot_diameter_surface * (self.total_scattering_coefficient + self.particle_scattering_coefficient)) # lidar attenuation coefficient
-        self.water_single_scattering_albedo = (self.lidar_attenuation_coefficient - self.total_scattering_coefficient) / self.lidar_attenuation_coefficient # Single Scattering Albedo of Water
-        self.attenuation_per_scatter = (1 - self.water_single_scattering_albedo) # Remaining energy weight after each collision
+        kd = self.absorption_coefficient + 4.18 * self.particle_scattering_coefficient * self.back_scatter_proportion * (1 - 0.52 * math.exp(-10.8 * self.absorption_coefficient)) # Diffuse attenuation coefficient (Churnside, 2014)
+        print("diffuse attenuation coefficient kd", kd)
+        self.lidar_attenuation_coefficient = kd + (self.particle_scattering_coefficient - 4.18 * self.particle_scattering_coefficient * self.back_scatter_proportion * (1 - 0.52 * math.exp(-10.8 * self.total_scattering_coefficient))) * math.exp(-0.85 * laser_spot_diameter_surface * (self.absorption_coefficient + self.particle_scattering_coefficient)) # lidar attenuation coefficient #
+        self.water_single_scattering_albedo = (self.lidar_attenuation_coefficient - self.absorption_coefficient) / self.lidar_attenuation_coefficient # Single Scattering Albedo of Water
+        print("water single scattering albedo", self.water_single_scattering_albedo)
+        self.attenuation_per_scatter = 0.5#(1 - self.water_single_scattering_albedo) # Remaining energy weight after each collision #
         
         print("lidar_attenuation_coefficient", self.lidar_attenuation_coefficient)
-        print("attenuation_per_scatter", self.attenuation_per_scatter)
+        print("attenuation_per_scatter", self.attenuation_per_scatter)  
 
     # Functions for:
         # Gewässertrübung (Streuung, Absorption)
