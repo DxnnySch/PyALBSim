@@ -22,8 +22,8 @@ print(f"loaded numpy file after {(time.time() - start):.2f} s = {((time.time() -
 # plot_histogram(simulation.photon_np_array[simulation.photon_np_array["reflection"] == False]["time"] / 10, bins=1250, title="Time of stored reflection photons", xlabel="Time")
 
 start = time.time()
-photons_per_batch = 20_000
-batches = 25
+photons_per_batch = 10_000
+batches = 10
 steps = 1000
 
 profiler = cProfile.Profile()
@@ -31,7 +31,7 @@ profiler.enable()
 
 for i in range(batches):
     simulation.simulate_batch(photons_per_batch, steps, False, 0)
-    print(f"{i+1} in {(time.time() - start):.2f} s = {((time.time() - start) / 60):.2f} min, estimated remaining: {((time.time() - start) / 60 / (i+1) * (batches - i + 1)):.2f} min")
+    print(f"{i+1} in {(time.time() - start):.2f} s = {((time.time() - start) / 60):.2f} min, estimated remaining: {((time.time() - start) / 60 / (i+1) * (batches - (i + 1))):.2f} min")
 
 profiler.disable()
 

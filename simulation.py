@@ -12,7 +12,6 @@ from line_profiler import profile
 
 from camera import Camera
 from laser import Laser
-from utils.gpt_ffscatter import generate_ff_phase_function, sample_scattering_directions_batch, scatter_energy
 from world import World
 from utils.photon_state import PhotonState
 import utils.numpy_vector as np_vec
@@ -41,7 +40,6 @@ class Simulation:
         self.laser_settings = Laser()
         self.camera_settings = Camera()
         self.world_settings = World(self.laser_settings, self.camera_settings)
-        self.ff_theta, self.ff_phase = generate_ff_phase_function(n_ff=1.0, M=18000)
         
         # TODO: fix sample multiplier changing breaking store_time in sample_photons
         self.sample_multiplier = 10
@@ -63,7 +61,6 @@ class Simulation:
     @profile
     def simulate_batch(self, num_photons: int, steps: int, forward: bool = True, num_samples_history: int = 0):
         self.current_step = 0
-        inner_start_time = time.time()
 
         N = num_photons
         history_samples = self.rng.integers(0, num_photons, num_samples_history)
@@ -83,7 +80,7 @@ class Simulation:
             full_histories[i].append(pos.copy())
 
 
-        for c_step in range(steps * self.sample_multiplier):
+        for _ in range(steps * self.sample_multiplier):
             positions, directions, velocities, energies, scatter_distances, interaction_points, already_reflected = self.simulate_photon_step(positions, directions, velocities, energies, scatter_distances, already_reflected, forward = forward)
             for i, idx in enumerate(history_samples):
                 inter = interaction_points[idx]
@@ -91,8 +88,6 @@ class Simulation:
                     full_histories[i].append(inter.copy())  # intermediate point
                 full_histories[i].append(positions[idx].copy())  # final position of this step
             self.current_step += 1
-            # if not forward and ((c_step + 1) / self.sample_multiplier) % 10 == 0:
-            #     print(f"current at inner step {(c_step + 1) / self.sample_multiplier} after {(time.time() - inner_start_time):.2f} s = {((time.time() - inner_start_time) / 60):.2f} min")
 
         return full_histories
 
@@ -129,7 +124,7 @@ class Simulation:
         reflection: bool
     ) -> None:
         for position, direction, energy, time_step in zip(positions, directions, energies, time_steps):
-            idx = self.photon_tree.query_ball_point(position, r=0.1 if reflection else 0.5)
+            idx = self.photon_tree.query_ball_point(position, r=0.2 if reflection else 0.5)
             if not idx: # nothing found
                 (self.photons_found_reflection if reflection else self.photons_found_scatter).append(0)
                 continue
@@ -150,9 +145,6 @@ class Simulation:
             k_eff = min(k, len(dists))
             nearest_idx = np.argpartition(dists, k_eff - 1)[:k_eff] if k_eff > 0 else []
             for photon_position, photon_direction, photon_energy, photon_time_step, _, _ in matching[nearest_idx]: #found[sort_idx]:
-                # if done >= 2:
-                #     break
-                # if photon_reflection != reflection: continue
 
                 if reflection: 
                     store_energy = energy * photon_energy * (self.world_settings.seafloor_albedo / np.pi) * max(0, np_vec.dot_vector(np.array([0, 1, 0]), -direction))
@@ -163,21 +155,7 @@ class Simulation:
                     # 1. Vector from scatter point to sensor (i.e. reverse of backward ray)
                     view_dir = -direction
 
-                    # # 2. Photon originally came from photon_direction
-                    # cos_theta = np.dot(view_dir, -photon_direction)
-                    # cos_theta = np.clip(cos_theta, -1.0, 1.0)  # Numerical safety
-
-                    # theta = np.arccos(cos_theta)
-
-                    # # 3. Interpolate FF phase function probability at this angle
-                    # ff_prob = np.interp(theta, self.world_settings.ct_r, self.world_settings.ff_phase_pdf).astype(np.float32)
-
-                    # # 4. Energy contribution (scaled by FF phase prob)
-                    # # The 1/pi term may not apply here — FF scattering is anisotropic, not Lambertian
-                    # # This is the scattering PDF * incoming energy * current energy
-                    # store_energy = energy * photon_energy * ff_prob
-
-                    store_energy = energy * photon_energy * scatter_energy(self.ff_phase, self.ff_theta, photon_direction, view_dir)
+                    store_energy = energy * photon_energy * self.world_settings.scatter_energy(photon_direction, view_dir)
 
                     # 5. Total time is round-trip time
                     store_time = time_step + photon_time_step
@@ -185,70 +163,6 @@ class Simulation:
                         self.return_waveform[int(store_time / self.sample_multiplier)] += store_energy
                     else:
                         print("ERROR: SHOULD NEVER HAPPEN!!!!")
-
-                # done += 1
-
-    # def sample_photons(
-    #     self,
-    #     positions: NDArray[np.float32],
-    #     directions: NDArray[np.float32],
-    #     energies: NDArray[np.float32],
-    #     time_steps: NDArray[np.float32],
-    #     reflection: bool
-    # ) -> None:
-    #     r = 0.1 if reflection else 0.5
-    #     all_idxs = KDTree(positions).query_ball_tree(self.photon_tree, r=r)
-    #     normal = np.array([0, 1, 0], dtype=np.float32)
-    #     sample_inv = 1.0 / self.sample_multiplier
-    #     # print("in sample_photons")
-    #     # print(positions)
-    #     # print(len(all_idxs))
-
-    #     for i, idx_list in enumerate(all_idxs):
-    #         # print(i, idx_list)
-    #         if not idx_list:
-    #             (self.photons_found_reflection if reflection else self.photons_found_scatter).append(0)
-    #             continue
-
-    #         photons = self.photon_np_array[idx_list]
-    #         match_mask = (photons["reflection"] == reflection)
-    #         matching = photons[match_mask]
-
-    #         (self.photons_found_reflection if reflection else self.photons_found_scatter).append(len(matching))
-
-    #         if len(matching) == 0:
-    #             continue
-
-    #         dists = np.linalg.norm(matching["position"] - positions[i], axis=1)
-            
-    #         # k nearest idx
-    #         k = 2
-    #         k_eff = min(k, len(dists))
-    #         nearest_idx = np.argpartition(dists, k_eff - 1)[:k_eff] if k_eff > 0 else []
-
-
-    #         for j in nearest_idx:
-    #             photon_pos = matching["position"][j]
-    #             photon_dir = matching["direction"][j]
-    #             photon_energy = matching["energy"][j]
-    #             photon_time = matching["time"][j]
-
-    #             if reflection:
-    #                 dot_n = max(0, np.dot(normal, -photon_dir))
-    #                 store_energy = energies[i] * photon_energy * (self.world_settings.seafloor_albedo / np.pi) * dot_n
-    #             else:
-    #                 view_dir = -directions[i]
-    #                 cos_theta = np.dot(view_dir, -photon_dir)
-    #                 cos_theta = np.clip(cos_theta, -1.0, 1.0)
-    #                 theta = np.arccos(cos_theta)
-    #                 ff_prob = np.interp(theta, self.world_settings.ct_r, self.world_settings.ff_phase_pdf).astype(np.float32)
-    #                 store_energy = energies[i] * photon_energy * ff_prob
-
-    #             store_time = time_steps[i] + photon_time
-    #             bin_idx = int(store_time * sample_inv)
-
-    #             if 0 <= bin_idx < len(self.return_waveform):
-    #                 self.return_waveform[bin_idx] += store_energy
 
 
     # ========================================
@@ -275,29 +189,6 @@ class Simulation:
         states[water_to_air] = PhotonState.EXITING_WATER.value
 
         return states
-
-    # @profile
-    # def evaluate_state(self, y_current, y_next):
-    #     """
-    #     Vectorized, single-pass state evaluator with integer outputs directly.
-    #     """
-    #     states = np.full_like(y_current, PhotonState.IN_AIR.value, dtype=np.int32)
-
-    #     # We combine masks in one pass to avoid intermediate copies
-    #     states = np.where(
-    #         (y_current > self.water_surface_y) & (y_next <= self.water_surface_y),
-    #         PhotonState.ENTERING_WATER.value, states)
-    #     states = np.where(
-    #         (y_current <= self.water_surface_y) & (y_next > self.seafloor_y),
-    #         PhotonState.IN_WATER.value, states)
-    #     states = np.where(
-    #         (y_current > self.seafloor_y) & (y_next <= self.seafloor_y),
-    #         PhotonState.HITTING_SEAFLOOR.value, states)
-    #     states = np.where(
-    #         (y_current <= self.water_surface_y) & (y_next > self.water_surface_y),
-    #         PhotonState.EXITING_WATER.value, states)
-
-    #     return states
 
     @profile
     def simulate_photon_step(
@@ -394,149 +285,6 @@ class Simulation:
             interaction_points[exit_idx] = intersection_points
 
         return positions, directions, velocities, energies, scatter_distances, interaction_points, already_reflected
-    
-    # @profile
-    # def simulate_photon_step(
-    #     self,
-    #     positions: NDArray[np.float32],         # (N, 3)
-    #     directions: NDArray[np.float32],        # (N, 3)
-    #     velocities: NDArray[np.float32],        # (N,)
-    #     energies: NDArray[np.float32],          # (N,)
-    #     scatter_distances: NDArray[np.float32], # (N,)
-    #     already_reflected: NDArray,             # (N,)
-    #     forward: bool
-    # ) -> Tuple[
-    #     NDArray[np.float32], NDArray[np.float32], NDArray[np.float32],
-    #     NDArray[np.float32], NDArray[np.float32], NDArray[np.float32], NDArray
-    # ]:
-    #     """
-    #     Simulates a single time step of photon movement and scattering,
-    #     using batch processing and index tracking for speed.
-    #     """
-    #     N = positions.shape[0]
-    #     next_positions = positions + directions * velocities[:, np.newaxis] * self.time_step
-    #     interaction_points = np.full_like(positions, np.nan, dtype=np.float32)
-
-    #     y_current = positions[:, 1]
-    #     y_next = next_positions[:, 1]
-
-    #     # Vectorized state evaluation
-    #     states = np.full(N, PhotonState.IN_AIR.value, dtype=np.int32)
-    #     states = np.where((y_current > self.water_surface_y) & (y_next <= self.water_surface_y), PhotonState.ENTERING_WATER.value, states)
-    #     states = np.where((y_current <= self.water_surface_y) & (y_next > self.seafloor_y), PhotonState.IN_WATER.value, states)
-    #     states = np.where((y_current > self.seafloor_y) & (y_next <= self.seafloor_y), PhotonState.HITTING_SEAFLOOR.value, states)
-    #     states = np.where((y_current <= self.water_surface_y) & (y_next > self.water_surface_y), PhotonState.EXITING_WATER.value, states)
-
-    #     # Sort photons by state for efficient block processing
-    #     sorted_indices = np.argsort(states)
-    #     original_indices = np.arange(N)
-    #     original_indices = original_indices[sorted_indices]
-    #     states_sorted = states[sorted_indices]
-
-    #     # Reorder all arrays
-    #     positions = positions[sorted_indices]
-    #     directions = directions[sorted_indices]
-    #     velocities = velocities[sorted_indices]
-    #     energies = energies[sorted_indices]
-    #     scatter_distances = scatter_distances[sorted_indices]
-    #     already_reflected = already_reflected[sorted_indices]
-    #     next_positions = next_positions[sorted_indices]
-    #     interaction_points = interaction_points[sorted_indices]
-
-    #     # Find boundaries for each state
-    #     s_vals = [
-    #         PhotonState.ENTERING_WATER.value,
-    #         PhotonState.IN_WATER.value,
-    #         PhotonState.HITTING_SEAFLOOR.value,
-    #         PhotonState.EXITING_WATER.value,
-    #         PhotonState.EXITING_WATER.value + 1,
-    #     ]
-    #     bounds = np.searchsorted(states_sorted, s_vals)
-    #     air_start = 0
-    #     enter_start, water_start, floor_start, exit_start, _ = bounds
-
-    #     # State: IN_AIR
-    #     positions[air_start:enter_start] = next_positions[air_start:enter_start]
-
-    #     # State: ENTERING_WATER
-    #     if enter_start < water_start:
-    #         refracted_pos, refracted_dir, new_scatter_dist, intersection_pts = self.handle_enter_exit_water_refraction(
-    #             positions[enter_start:water_start],
-    #             next_positions[enter_start:water_start],
-    #             directions[enter_start:water_start],
-    #             scatter_distances[enter_start:water_start],
-    #             1,
-    #             self.world_settings.refractive_index_water,
-    #             False,
-    #             forward=forward
-    #         )
-    #         positions[enter_start:water_start] = refracted_pos
-    #         directions[enter_start:water_start] = refracted_dir
-    #         scatter_distances[enter_start:water_start] = new_scatter_dist
-    #         interaction_points[enter_start:water_start] = intersection_pts
-
-    #     # State: IN_WATER
-    #     if water_start < floor_start:
-    #         water_pos, water_dir, water_energy, new_scatter_dist, scatter_pts = self.handle_water_scatter(
-    #             positions[water_start:floor_start],
-    #             next_positions[water_start:floor_start],
-    #             directions[water_start:floor_start],
-    #             energies[water_start:floor_start],
-    #             scatter_distances[water_start:floor_start],
-    #             forward=forward
-    #         )
-    #         positions[water_start:floor_start] = water_pos
-    #         directions[water_start:floor_start] = water_dir
-    #         energies[water_start:floor_start] = water_energy
-    #         scatter_distances[water_start:floor_start] = new_scatter_dist
-    #         interaction_points[water_start:floor_start] = scatter_pts
-
-    #     # State: HITTING_SEAFLOOR
-    #     if floor_start < exit_start:
-    #         refl_pos, refl_dir, refl_energy, intersection_pts, refl_flags = self.handle_seafloor_reflection(
-    #             positions[floor_start:exit_start],
-    #             next_positions[floor_start:exit_start],
-    #             directions[floor_start:exit_start],
-    #             energies[floor_start:exit_start],
-    #             already_reflected[floor_start:exit_start],
-    #             forward=forward
-    #         )
-    #         positions[floor_start:exit_start] = refl_pos
-    #         directions[floor_start:exit_start] = refl_dir
-    #         energies[floor_start:exit_start] = refl_energy
-    #         interaction_points[floor_start:exit_start] = intersection_pts
-    #         already_reflected[floor_start:exit_start] = refl_flags
-
-    #     # State: EXITING_WATER
-    #     if exit_start < N:
-    #         refracted_pos, refracted_dir, new_scatter_dist, intersection_pts = self.handle_enter_exit_water_refraction(
-    #             positions[exit_start:],
-    #             next_positions[exit_start:],
-    #             directions[exit_start:],
-    #             scatter_distances[exit_start:],
-    #             self.world_settings.refractive_index_water,
-    #             1,
-    #             True,
-    #             forward=forward
-    #         )
-    #         positions[exit_start:] = refracted_pos
-    #         directions[exit_start:] = refracted_dir
-    #         scatter_distances[exit_start:] = new_scatter_dist
-    #         interaction_points[exit_start:] = intersection_pts
-
-    #     # Restore original order
-    #     # reverse_indices = np.argsort(original_indices)
-    #     # return (
-    #     #     positions[reverse_indices],
-    #     #     directions[reverse_indices],
-    #     #     velocities[reverse_indices],
-    #     #     energies[reverse_indices],
-    #     #     scatter_distances[reverse_indices],
-    #     #     interaction_points[reverse_indices],
-    #     #     already_reflected[reverse_indices]
-    #     # )
-    #     return positions, directions, velocities, energies, scatter_distances, interaction_points, already_reflected
-
 
 
     # ========================================
@@ -757,7 +505,7 @@ class Simulation:
             # # Normalize directions
             # new_dir = np_vec.normalize_batch(new_dir)
             # new_directions[idx] = new_dir
-            new_dir = np_vec.normalize_batch(sample_scattering_directions_batch(self.ff_phase, self.ff_theta, directions[idx], self.rng))
+            new_dir = np_vec.normalize_batch(self.world_settings.sample_scattering_directions_batch(directions[idx], self.rng))
             new_directions[idx] = new_dir
 
             # Energy loss due to scattering
@@ -821,8 +569,8 @@ if __name__ == "__main__":
     # plot_scatter_2d(visualize_photons["position"][:, 0], visualize_photons["position"][:, 1], ylabel="Y-Axis")
 
     start = time.time()
-    photons_per_batch = 12_500
-    batches = 10
+    photons_per_batch = 10_000
+    batches = 5
     steps = 1250
 
     profiler = cProfile.Profile()
@@ -830,7 +578,7 @@ if __name__ == "__main__":
 
     for i in range(batches):
         simulation.simulate_batch(photons_per_batch, steps, False, 0)
-        print(f"{i+1} in {(time.time() - start):.2f} s = {((time.time() - start) / 60):.2f} min, estimated remaining: {((time.time() - start) / 60 / (i+1) * (batches - i + 1)):.2f} min")
+        print(f"{i+1} in {(time.time() - start):.2f} s = {((time.time() - start) / 60):.2f} min, estimated remaining: {((time.time() - start) / 60 / (i+1) * (batches - (i + 1))):.2f} min")
 
     profiler.disable()
 

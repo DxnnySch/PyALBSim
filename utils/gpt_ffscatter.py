@@ -243,7 +243,7 @@ if __name__ == "__main__":
     theta2, parametric_ff_phase = generate_parametric_ff_phase_function(n_ff, 3.5, M)
     # plot_phase_function(theta, ff_phase)
     plt.figure(figsize=(8, 4))
-    plt.semilogx(np.degrees(theta), cdf)
+    plt.plot(np.degrees(theta), cdf)
     plt.xlabel('Scattering Angle (degrees)')
     plt.ylabel('Phase Function p(theta)')
     plt.title('Fournier-Forand Phase Function')

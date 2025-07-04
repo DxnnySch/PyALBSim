@@ -1,5 +1,5 @@
 import numpy as np
-from plot_2d import plot_2d
+import matplotlib.pyplot as plt
 
 def FFScatter(n_FF=1.10, M=18000):
     """
@@ -16,6 +16,7 @@ def FFScatter(n_FF=1.10, M=18000):
         Delta_pi (float): Delta value at 180 degrees (used in FF model).
     """
     miu = 3 + (n_FF - 1.01) / 0.1542
+    print("mu", miu)
     v = 0.5 * (3 - miu)  # FF parameter v
 
     k = np.arange(1, M + 1)
@@ -43,4 +44,13 @@ def FFScatter(n_FF=1.10, M=18000):
 if __name__ == "__main__":
     v_1, Bp_1, p_ct_r_1, Delta_pi_1, ct_r_1 = FFScatter(n_FF=1.10, M=18000)
     print(v_1, Bp_1)
-    plot_2d(p_ct_r_1)
+    plt.figure(figsize=(8, 4))
+    cdf = np.cumsum(p_ct_r_1 * np.sin(ct_r_1))
+    cdf /= cdf[-1]
+    plt.semilogx(np.degrees(ct_r_1), cdf)
+    plt.xlabel('Scattering Angle (degrees)')
+    plt.ylabel('Phase Function p(theta)')
+    plt.title('Fournier-Forand Phase Function')
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
