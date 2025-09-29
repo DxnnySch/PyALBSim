@@ -91,8 +91,8 @@ class Simulation:
                 if not np.isnan(inter).any():
                     full_histories[i].append(inter.copy())  # intermediate point
                 full_histories[i].append(positions[idx].copy())  # final position of this step
-            # if not forward and self.current_step % (5 * self.sample_multiplier) == 0:
-            #     print(f"step {self.current_step} of {steps * self.sample_multiplier} in {(time.time() - start_batch_time):.2f} s = {((time.time() - start_batch_time) / 60):.2f} min, estimated remaining: {((time.time() - start_batch_time) / 60 / (self.current_step+1) * (steps * self.sample_multiplier - (self.current_step + 1))):.2f} min")
+            if not forward and self.current_step % (5 * self.sample_multiplier) == 0:
+                print(f"step {self.current_step} of {steps * self.sample_multiplier} in {(time.time() - start_batch_time):.2f} s = {((time.time() - start_batch_time) / 60):.2f} min, estimated remaining: {((time.time() - start_batch_time) / 60 / (self.current_step+1) * (steps * self.sample_multiplier - (self.current_step + 1))):.2f} min")
             self.current_step += 1
 
         return full_histories
@@ -129,12 +129,13 @@ class Simulation:
         time_steps: NDArray[np.float32],
         photon_type: PhotonType
     ) -> None:
-        _, indices = self.photon_tree.query(
-            positions,
-            distance_upper_bound=(0.5 if photon_type == PhotonType.SCATTER else 0.2),
-            workers=-1
-        )
-        for position, direction, energy, time_step, idx in zip(positions, directions, energies, time_steps, indices):
+        
+        for position, direction, energy, time_step in zip(positions, directions, energies, time_steps):
+            _, idx = self.photon_tree.query(
+                position,
+                distance_upper_bound=(0.5 if photon_type == PhotonType.SCATTER else 0.2),
+                # workers=-1
+            )
             if not idx or idx >= len(self.photon_np_array): # nothing found
                 (self.photons_found_bottom_reflection if photon_type == PhotonType.BOTTOM_REFLECTION else (self.photons_found_scatter if photon_type == PhotonType.SCATTER else self.photons_found_surface_reflection)).append(0)
                 continue

@@ -50,7 +50,7 @@ class World:
         
         params = {k: v for k,v in vars(self).items() if k not in {"oowb_ff_scatter_theta", "oowb_ff_scatter_pf", "oowb_ff_scatter_cdf"}}
         table = tabulate(params.items(), headers=["Parameter", "Value"], tablefmt="grid")
-        print(table)
+        # print(table)
 
 
     def ff_scatter_pf(self):
