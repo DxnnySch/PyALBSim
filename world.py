@@ -15,14 +15,17 @@ class World:
         self.light_speed_air = 2.998e8; # speed of light in vacuum. m/s
         self.refractive_index_water = 1.33334; # Refractive index of water
         self.light_speed_water = self.light_speed_air / self.refractive_index_water; # speed of light in water. m/s
+        self.base_reflectance = ((1 - self.refractive_index_water) / (1 + self.refractive_index_water)) ** 2
 
         # Optical parameters of water body
-        self.absorption_coefficient = 0.169; # total absorption coefficient in water. m-1. Here is clean water.
-        self.total_scattering_coefficient = 1.21; # total scattering coefficient
+        self.absorption_coefficient = 0.169; # total absorption coefficient in water. m-1.
+        self.total_scattering_coefficient = 2.5#1.21; # total scattering coefficient
         self.salinity_unit = 37; # salinity unit. The salt content in pure seawater. S is generally 37 ppt (Pure water is 0 ppt).
         self.seawater_molecular_scattering_coefficient = (1 + 0.008027 * self.salinity_unit) * 0.00012 * laser_settings.laser_wavelength**(-4.24); # Seawater Molecular Scattering Coefficient
         self.particle_scattering_coefficient = self.total_scattering_coefficient - self.seawater_molecular_scattering_coefficient; # Particle scattering coefficient
         self.seafloor_albedo = 0.05 # how much energy is reflected of the sea floor (how much is not absorbed)
+        self.water_surface_roughness = 0.035 # alpha parameter for microfacet brdf
+        self.water_surface_albedo = 0.1 # how much energy is reflected of the water surface
 
         # FF scattering phase function parameter settings---CORE
         # User parameters (Mobley,2002)

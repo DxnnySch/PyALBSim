@@ -42,7 +42,7 @@ stats = pstats.Stats(profiler).sort_stats('tottime')
 stats.print_stats(30)  # Top 30 functions
 
 plot_2d(simulation.return_waveform, ylabel="Intensity", xlabel="Sample")
-photons_reflections = np.array(simulation.photons_found_reflection)
+photons_reflections = np.array(simulation.photons_found_bottom_reflection)
 plot_histogram(photons_reflections[photons_reflections < 400], bins = 400, title="Number of Photons found at Reflections", xlabel="Photons in Radius")
 photons_scatters = np.array(simulation.photons_found_scatter)
 plot_histogram(photons_scatters[photons_scatters < 400], bins = 400, title="Number of Photons found at Scatters", xlabel="Photons in Radius")

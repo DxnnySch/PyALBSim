@@ -235,3 +235,59 @@ def cosine_weighted_sample_batch(normals: Matrix, rng: np.random.Generator) -> M
         results[i] = normalize_vector(world)
     return results
 
+# -----------------------------
+# Surface reflection energy functions
+# -----------------------------
+def fresnel_schlick(cos_in, F0):
+    # cosine of incidence angle (incident photon direction and surface normal)
+    # F0: base reflectance (what fraction reflects straight down, 0.02 for air-water)
+    # returns fraction of reflected light (rest is refracted into the water)
+    return F0 + (1 - F0) * (1 - cos_in)**5
+
+def D_GGX(n_dot_h, alpha):
+    # n_dot_h: cosine of half angle (between incident and outgoing direction) w.r.t. surface normal
+    # alpha: roughness - small value: smooth surface, larger value: rough surface. Range usually [0.001 ... 1]
+    # n_dot_h in [0..1], alpha > 0 roughness
+    a2 = alpha * alpha
+    denom = (n_dot_h**2 * (a2 - 1.0) + 1.0)
+    return a2 / (np.pi * denom**2)
+
+def G_Smith(n_dot_o, n_dot_i, alpha):
+    # cosines of outgoing and incident directions w.r.t. surface normal
+    # alpha: roughness - small value: smooth surface, larger value: rough surface. Range usually [0.001 ... 1]
+    def G1(n_dot_x):
+        a = alpha
+        a2 = a * a
+        denom = n_dot_x + np.sqrt(a2 + (1 - a2) * n_dot_x**2)
+        return 2.0 * n_dot_x / denom
+    return G1(n_dot_o) * G1(n_dot_i)
+
+def microfacet_brdf(omega_i, omega_o, normal, alpha: float, F0: float, rho_d=0.0):
+    # omega i: incident direction
+    # omega o: outgoing / view direction (towards sensor)
+    # normal: surface normal (macroscopic normal, might be not straight up due to waves)
+    # alpha: roughness - small value: smooth surface, larger value: rough surface. Range usually [0.001 ... 1]
+    # F0: base reflectance (what fraction reflects straight down, 0.02 for air-water)
+    # rho_d: diffuse albedo
+    
+    # ensure normalized
+    omega_i = normalize_vector(omega_i)
+    omega_o = normalize_vector(omega_o)
+    n = normal / np.linalg.norm(normal)
+
+    n_dot_i = max(0.0, np.dot(n, -omega_i))  # incident towards surface
+    n_dot_o = max(0.0, np.dot(n, omega_o))   # outgoing toward sensor
+    if n_dot_i <= 0 or n_dot_o <= 0:
+        return 0.0
+
+    h = normalize_vector(omega_i + omega_o)
+    n_dot_h = max(0.0, np.dot(n, h))
+    v_dot_h = max(0.0, np.dot(omega_o, h))
+    # D, F, G
+    D = D_GGX(n_dot_h, alpha)
+    F = fresnel_schlick(v_dot_h, F0)
+    G = G_Smith(n_dot_o, n_dot_i, alpha)
+
+    spec = (D * F * G) / (4.0 * n_dot_i * n_dot_o + 1e-12)
+    diff = rho_d / np.pi
+    return spec + diff

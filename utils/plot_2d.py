@@ -21,4 +21,5 @@ def plot_2d(data: np.ndarray, title: str = "vector", xlabel: str = "X-Axis", yla
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
+    plt.subplots_adjust(left=0.05, bottom=0.075, right=0.975, top=0.945)
     plt.show()
