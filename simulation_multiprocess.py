@@ -54,9 +54,7 @@ def backward_worker(args):
 
 def backward_worker_local(args):
     photons_per_batch, steps, seed, photon_array_local = args
-    """
-    photon_array_local: a full NumPy array of photons for this worker
-    """
+
     rng = np.random.default_rng(seed)
     sim = Simulation(rng, steps)
 
