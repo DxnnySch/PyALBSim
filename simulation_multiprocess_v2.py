@@ -73,14 +73,15 @@ def run_with_progress(pool, worker, args_list, label, total_batches):
 # Main driver
 # ==============================
 if __name__ == "__main__":
-    steps = 1000
+    start = time.time()
+    steps = 5000
     nproc = 4
 
     # ------------------------------
     # Forward pass (parallel + progress)
     # ------------------------------
-    photons_per_batch = 15_000
-    forward_batches = 12
+    photons_per_batch = 20_000
+    forward_batches = 8
     forward_args = [(photons_per_batch, steps, secrets.randbits(64))
                     for _ in range(forward_batches)]
 
@@ -96,8 +97,8 @@ if __name__ == "__main__":
     # ------------------------------
     # Backward pass (parallel + persistent KDTree + progress)
     # ------------------------------
-    photons_per_batch = 10_000
-    backward_batches = 12
+    photons_per_batch = 20_000
+    backward_batches = 8
 
     # Build args list for backward batches (seeds only)
     backward_args = [(photons_per_batch, steps, secrets.randbits(64))
@@ -107,11 +108,12 @@ if __name__ == "__main__":
     start_time = time.time()
     with mp.Pool(processes=nproc,
                  initializer=backward_worker_init,
-                 initargs=(photon_np_array.copy(),)) as pool:
+                 initargs=(photon_np_array,)) as pool:
         print(f"initialized workers in {(time.time()-start_time):.2f} s ({(time.time()-start_time)/60:.2f} min)")
         backward_results = run_with_progress(pool, backward_worker_batch,
                                              backward_args, "Backward", backward_batches)
 
     total_waveform = np.sum(backward_results, axis=0)
     print("Simulation finished.")
+    print(f"Total time {(time.time()-start):.2f} s ({(time.time()-start)/60:.2f} min)")
     plot_2d(total_waveform, title="waveform", ylabel="Intensity", xlabel="Sample")

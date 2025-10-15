@@ -1,0 +1,5 @@
+numpy
+scipy
+tabulate
+matplotlib
+line_profiler

@@ -40,11 +40,11 @@ class Simulation:
         self.number_of_photons = 1e5 # Number of photon packets.
         self.photon_survival_threshold_weight = 0.0001 # epsilon
 
-        self.laser_settings = Laser()
-        self.camera_settings = Camera()
-        self.world_settings = World(self.laser_settings, self.camera_settings)
-
         self.sample_multiplier = 10
+
+        self.camera_settings = Camera()
+        self.laser_settings = Laser(self.camera_settings, self.sample_multiplier)
+        self.world_settings = World(self.laser_settings, self.camera_settings)
 
         self.time_step = 1 / (self.camera_settings.sample_rate * self.sample_multiplier)
         self.water_surface_y = -self.camera_settings.flying_height
@@ -66,17 +66,17 @@ class Simulation:
         start_batch_time = time.time()
         self.current_step = 0
 
-        N = num_photons
         history_samples = self.rng.integers(0, num_photons, num_samples_history)
 
-        positions = np.zeros((N, 3), dtype=np.float32)
+        positions = np.zeros((num_photons, 3), dtype=np.float32)
 
-        directions = np_vec.sample_directions_in_cone(np.array(self.laser_settings.laser_direction), self.laser_settings.laser_divergence_angle if forward else self.laser_settings.field_of_view, N, self.rng)
+        directions = np_vec.sample_directions_in_cone(np.array(self.laser_settings.laser_direction), self.laser_settings.laser_divergence_angle if forward else self.laser_settings.field_of_view, num_photons, self.rng)
 
-        velocities = np.full(N, self.world_settings.light_speed_air, dtype=np.float32)
-        energies = np.full(N, 1, dtype=np.float32)
-        scatter_distances = np.full(N, np.inf, dtype=np.float32)
-        already_reflected = np.full(N, False, dtype=bool)
+        velocities = np.full(num_photons, self.world_settings.light_speed_air, dtype=np.float32)
+        energies = np.full(num_photons, 1, dtype=np.float32)
+        scatter_distances = np.full(num_photons, np.inf, dtype=np.float32)
+        time_deltas = self.laser_settings.get_emission_times(num_photons, self.rng)
+        already_reflected = np.full(num_photons, False, dtype=bool)
 
         full_histories: List[List[NDArray[np.float32]]] = [[] for _ in range(num_samples_history)]
 
@@ -85,14 +85,14 @@ class Simulation:
 
 
         for _ in range(steps * self.sample_multiplier):
-            positions, directions, velocities, energies, scatter_distances, interaction_points, already_reflected = self.simulate_photon_step(positions, directions, velocities, energies, scatter_distances, already_reflected, forward = forward)
+            positions, directions, velocities, energies, scatter_distances, interaction_points, already_reflected = self.simulate_photon_step(positions, directions, velocities, energies, scatter_distances, time_deltas, already_reflected, forward = forward)
             for i, idx in enumerate(history_samples):
                 inter = interaction_points[idx]
                 if not np.isnan(inter).any():
                     full_histories[i].append(inter.copy())  # intermediate point
                 full_histories[i].append(positions[idx].copy())  # final position of this step
-            if not forward and self.current_step % (5 * self.sample_multiplier) == 0:
-                print(f"step {self.current_step} of {steps * self.sample_multiplier} in {(time.time() - start_batch_time):.2f} s = {((time.time() - start_batch_time) / 60):.2f} min, estimated remaining: {((time.time() - start_batch_time) / 60 / (self.current_step+1) * (steps * self.sample_multiplier - (self.current_step + 1))):.2f} min")
+            # if not forward and self.current_step % (5 * self.sample_multiplier) == 0:
+            #     print(f"step {self.current_step} of {steps * self.sample_multiplier} in {(time.time() - start_batch_time):.2f} s = {((time.time() - start_batch_time) / 60):.2f} min, estimated remaining: {((time.time() - start_batch_time) / 60 / (self.current_step+1) * (steps * self.sample_multiplier - (self.current_step + 1))):.2f} min")
             self.current_step += 1
 
         return full_histories
@@ -204,9 +204,10 @@ class Simulation:
         positions: NDArray[np.float32],    # (N, 3)
         directions: NDArray[np.float32],   # (N, 3)
         velocities: NDArray[np.float32],   # (N, 3)
-        energies: NDArray[np.float32],     # (N, 3)
-        scatter_distances: NDArray[np.float32],     # (N, 3)
-        already_reflected: NDArray,     # (N, 3)
+        energies: NDArray[np.float32],     # (N, 1)
+        scatter_distances: NDArray[np.float32],     # (N, 1)
+        time_deltas: NDArray[np.float32],     # (N, 1)
+        already_reflected: NDArray,
         forward: bool
     ) -> Tuple[NDArray[np.float32], NDArray[np.float32], NDArray[np.float32], NDArray[np.float32], NDArray[np.float32], NDArray[np.float32], NDArray]:
         """
@@ -236,6 +237,7 @@ class Simulation:
                 directions[water_idx],
                 energies[water_idx],
                 scatter_distances[water_idx],
+                time_deltas[water_idx],
                 forward = forward
             )
             positions[water_idx] = water_positions
@@ -251,6 +253,7 @@ class Simulation:
                 directions[enter_idx],
                 energies[enter_idx],
                 scatter_distances[enter_idx],
+                time_deltas[enter_idx],
                 1,
                 self.world_settings.refractive_index_water,
                 False,
@@ -268,6 +271,7 @@ class Simulation:
                 next_positions[hit_floor_idx],
                 directions[hit_floor_idx],
                 energies[hit_floor_idx],
+                time_deltas[hit_floor_idx],
                 already_reflected[hit_floor_idx],
                 forward = forward
             )
@@ -284,6 +288,7 @@ class Simulation:
                 directions[exit_idx],
                 energies[exit_idx],
                 scatter_distances[exit_idx],
+                time_deltas[exit_idx],
                 self.world_settings.refractive_index_water,
                 1,
                 True,
@@ -310,6 +315,7 @@ class Simulation:
         next_positions: NDArray[np.float32],
         directions: NDArray[np.float32],
         energies: NDArray[np.float32],
+        time_deltas: NDArray[np.float32],
         already_reflected: NDArray,
         forward: bool
     ) -> Tuple[NDArray[np.float32], NDArray[np.float32], NDArray[np.float32], NDArray[np.float32]]:
@@ -334,7 +340,7 @@ class Simulation:
         final_positions = intersection + remaining_step
 
         if forward:
-            self.store_photons(intersection, directions, energies, f + self.current_step, PhotonType.BOTTOM_REFLECTION, already_reflected)
+            self.store_photons(intersection, directions, energies, f + self.current_step + time_deltas, PhotonType.BOTTOM_REFLECTION, already_reflected)
         else:
             self.sample_photons(intersection, directions, energies, f + self.current_step, PhotonType.BOTTOM_REFLECTION)
 
@@ -351,6 +357,7 @@ class Simulation:
         directions: NDArray[np.float32],
         energies: NDArray[np.float32],
         scatter_distances: NDArray[np.float32],
+        time_deltas: NDArray[np.float32],
         n1: float,
         n2: float,
         invert_normals: bool,
@@ -400,7 +407,7 @@ class Simulation:
 
         # Store incident photon for backward gathering (before splitting energy)
         if forward:
-            self.store_photons(intersection, directions, energies, f + self.current_step, PhotonType.SURFACE_REFLECTION)
+            self.store_photons(intersection, directions, energies, f + self.current_step + time_deltas, PhotonType.SURFACE_REFLECTION)
         else:
             self.sample_photons(intersection, directions, energies, f + self.current_step, PhotonType.SURFACE_REFLECTION)
 
@@ -446,6 +453,7 @@ class Simulation:
         directions: NDArray[np.float32],
         energies: NDArray[np.float32],
         scatter_distances: NDArray[np.float32],
+        time_deltas: NDArray[np.float32],
         forward: bool
     ) -> Tuple[NDArray[np.float32], NDArray[np.float32], NDArray[np.float32], NDArray[np.float32], NDArray[np.float32]]:
         """
@@ -500,7 +508,7 @@ class Simulation:
             new_scatter_distances[idx] = -np.log(rand_vals) / self.world_settings.lidar_attenuation_coefficient
             
             if forward:
-                self.store_photons(scatter_points[idx], directions[idx], energies[idx], t + self.current_step, PhotonType.SCATTER)
+                self.store_photons(scatter_points[idx], directions[idx], energies[idx], t + self.current_step + time_deltas[idx], PhotonType.SCATTER)
             else:
                 self.sample_photons(scatter_points[idx], directions[idx], energies[idx], t + self.current_step, PhotonType.SCATTER)
 
@@ -509,13 +517,13 @@ class Simulation:
 
 if __name__ == "__main__":
     rng = np.random.default_rng(secrets.randbits(128))
-    steps = 1000
+    steps = 5000
     simulation = Simulation(rng, steps)
     print(f"{steps} steps, this will simulate {steps * simulation.world_settings.light_speed_air * simulation.time_step} m")
     print(f"distance laser - seafloor is {round(np.dot(np.array([0, -simulation.camera_settings.distance_seafloor_flying_height, 0]), np.array([0, 1, 0]))/np.dot(np_vec.normalize_vector(np.array(simulation.laser_settings.laser_direction)), np.array([0, 1, 0])), 2)} m")
     start = time.time()
-    photons_per_batch = 20_000
-    batches = 15
+    photons_per_batch = 15_000
+    batches = 12
     visualize_paths = 0
 
     profiler = cProfile.Profile()
@@ -537,7 +545,7 @@ if __name__ == "__main__":
 
     start = time.time()
     simulation.photon_np_array = np.concatenate(simulation.photon_batches)
-    np.save(f"photon-map_{(photons_per_batch*batches):,}-photons.npy", simulation.photon_np_array)
+    # np.save(f"photon-map_{(photons_per_batch*batches):,}-photons.npy", simulation.photon_np_array)
     print(f"{len(simulation.photon_np_array)} entries in photon list, {(sys.getsizeof(simulation.photon_np_array) / 1024):.2f} KiB")
     positions = np.array(simulation.photon_np_array["position"])
     simulation.photon_tree = KDTree(positions)
@@ -545,8 +553,8 @@ if __name__ == "__main__":
     print(f"time saving: {elapsed:.6f} seconds = {(elapsed / 60):.2f} min")
 
     start = time.time()
-    photons_per_batch = 15_000
-    batches = 10
+    photons_per_batch = 10_000
+    batches = 12
 
     profiler = cProfile.Profile()
     profiler.enable()
