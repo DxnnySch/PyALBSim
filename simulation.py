@@ -34,7 +34,7 @@ photon_dtype = [
 ]
 
 class Simulation:
-    def __init__(self, rng: np.random.Generator, num_steps):
+    def __init__(self, rng: np.random.Generator, num_steps, options = {}):
         self.rng = rng
 
         self.number_of_photons = 1e5 # Number of photon packets.
@@ -42,9 +42,9 @@ class Simulation:
 
         self.sample_multiplier = 10
 
-        self.camera_settings = Camera()
-        self.laser_settings = Laser(self.camera_settings, self.sample_multiplier)
-        self.world_settings = World(self.laser_settings, self.camera_settings)
+        self.camera_settings = Camera(options.get("flying_height", 20), options.get("water_depth", 2), options.get("sample_rate", 5_000_000_000))
+        self.laser_settings = Laser(self.camera_settings, self.sample_multiplier, 0.1, 1 * 1e-3, 10 * 1e-3 / 2, 0.532, options.get("t_max", 50e-9))
+        self.world_settings = World(self.laser_settings, self.camera_settings, options.get("absorption_coefficient", 0.169), options.get("total_scattering_coefficient", 2.5), options.get("salinity_unit", 37), options.get("seafloor_albedo", 0.05), options.get("water_surface_roughness", 0.035), options.get("water_surface_albedo", 0.1))
 
         self.time_step = 1 / (self.camera_settings.sample_rate * self.sample_multiplier)
         self.water_surface_y = -self.camera_settings.flying_height
@@ -517,8 +517,10 @@ class Simulation:
 
 if __name__ == "__main__":
     rng = np.random.default_rng(secrets.randbits(128))
-    steps = 5000
-    simulation = Simulation(rng, steps)
+    options = {}
+    
+    steps = options.get("steps", 5000)
+    simulation = Simulation(rng, steps, options)
     print(f"{steps} steps, this will simulate {steps * simulation.world_settings.light_speed_air * simulation.time_step} m")
     print(f"distance laser - seafloor is {round(np.dot(np.array([0, -simulation.camera_settings.distance_seafloor_flying_height, 0]), np.array([0, 1, 0]))/np.dot(np_vec.normalize_vector(np.array(simulation.laser_settings.laser_direction)), np.array([0, 1, 0])), 2)} m")
     start = time.time()

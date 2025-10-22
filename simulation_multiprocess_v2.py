@@ -16,9 +16,9 @@ from utils.plot_2d import plot_2d
 # Forward worker
 # ==============================
 def forward_worker(args):
-    photons_per_batch, steps, seed = args
+    photons_per_batch, steps, seed, options = args
     rng = np.random.default_rng(seed)
-    sim = Simulation(rng, steps)
+    sim = Simulation(rng, steps, options)
 
     sim.simulate_batch(photons_per_batch, steps, True, 0)
     return np.concatenate(sim.photon_batches) if sim.photon_batches else None
@@ -42,9 +42,9 @@ def backward_worker_init(shared_photon_array):
 # Backward worker batch
 # ==============================
 def backward_worker_batch(args):
-    photons_per_batch, steps, seed = args
+    photons_per_batch, steps, seed, options = args
     rng = np.random.default_rng(seed)
-    sim = Simulation(rng, steps)
+    sim = Simulation(rng, steps, options)
 
     # Attach global photon map + tree
     sim.photon_np_array = photon_array
