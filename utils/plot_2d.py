@@ -110,4 +110,4 @@ def plot_2d_better(
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
         print(f"✅ Plot saved to {save_path}")
 
-    plt.show()
+    # plt.show()

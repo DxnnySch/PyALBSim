@@ -14,8 +14,8 @@ sampler = qmc.LatinHypercube(d=10)
 sample = sampler.random(n=1)
 
 # Define lower and upper bounds for each variable
-l_bounds = [5,	0.1, 	1e9, 	25e-9, 	0.05, 	1, 	0, 	 0.01, 	0.01, 	0.01]
-u_bounds = [50,	10,		10e9, 	100e-9, 0.5, 	10, 100, 0.5, 	0.1, 	0.5	]
+l_bounds = [5,	0.1, 	15e9 - 1, 	25e-9, 	0.05, 	0.1, 	0, 	 0.01, 	0.01, 	0.01]
+u_bounds = [50,	10,		15e9, 	    100e-9, 0.5,    5,      40,   0.5, 	0.1, 	0.5	]
 
 # Scale all dimensions at once
 scaled = qmc.scale(sample, l_bounds, u_bounds)
@@ -56,6 +56,7 @@ if __name__ == "__main__":
             'flying_height': row["flying_height"],
             'water_depth': row["water_depth"],
             'sample_rate': round(row["sample_rate"]),
+            'sample_multiplier': 100,
             't_max': row["t_max"],
             'absorption_coefficient': row["absorption_coefficient"],
             'total_scattering_coefficient': row["total_scattering_coefficient"],
@@ -67,13 +68,18 @@ if __name__ == "__main__":
         print(options)
         print([float(options["flying_height"]), float(options["water_depth"]), float(options["sample_rate"])])
         start = time.time()
-        nproc = 16
+        nproc = 24
+        options["num_workers"] = nproc
 
         # ------------------------------
         # Forward pass (parallel + progress)
         # ------------------------------
-        photons_per_batch = 2_500
-        forward_batches = 16
+        photons_per_batch = 5_000
+        forward_batches = 24
+        
+        options["photons_per_batch_forward"] = photons_per_batch
+        options["batches_forward"] = forward_batches
+        
         forward_args = [(photons_per_batch, steps, secrets.randbits(64), options)
                         for _ in range(forward_batches)]
 
@@ -89,8 +95,11 @@ if __name__ == "__main__":
         # ------------------------------
         # Backward pass (parallel + persistent KDTree + progress)
         # ------------------------------
-        photons_per_batch = 2_500
-        backward_batches = 16
+        photons_per_batch = 5_000
+        backward_batches = 24
+        
+        options["photons_per_batch_backward"] = photons_per_batch
+        options["batches_backward"] = backward_batches
 
         # Build args list for backward batches (seeds only)
         backward_args = [(photons_per_batch, steps, secrets.randbits(64), options)
@@ -109,8 +118,10 @@ if __name__ == "__main__":
         print("Simulation finished.")
         print(f"Total time {(time.time()-start):.2f} s ({(time.time()-start)/60:.2f} min)")
         
+        options["total_time_min"] = (time.time()-start) / 60
+        
         # xmin =  -1259.7848010107764 + np.dot(np.array([3.81108559e+01, 3.56798396e+01, 1.87900348e-07]), np.array([options["flying_height"], options["water_depth"], options["sample_rate"]]))
         # xmax =  -1384.4673576234168 + np.dot(np.array([4.17736964e+01, 4.21878048e+01, 2.06038173e-07]), np.array([options["flying_height"], options["water_depth"], options["sample_rate"]]))
         print(predict_xlim(options["flying_height"], options["water_depth"], options["sample_rate"]))
-        plot_2d_better(total_waveform, title="waveform", ylabel="Intensity", xlabel="Sample", save_path=f"images/hypercube-sample-v4/{index}.png", params=options) # , xlim=(xmin, xmax)
-        plot_2d_better(total_waveform, title="waveform", ylabel="Intensity", xlabel="Sample", save_path=f"images/hypercube-sample-v4/{index}.png", params=options, xlim=predict_xlim(options["flying_height"], options["water_depth"], options["sample_rate"])) # , xlim=(xmin, xmax)
+        # plot_2d_better(total_waveform, title="waveform", ylabel="Intensity", xlabel="Sample", save_path=f"images/hypercube-sample-v4/{index}.png", params=options) # , xlim=(xmin, xmax)
+        plot_2d_better(total_waveform, title="waveform", ylabel="Intensity", xlabel="Sample", save_path=f"images/hypercube-sample-v5/{index}.png", params=options, xlim=predict_xlim(options["flying_height"], options["water_depth"], options["sample_rate"])) # , xlim=(xmin, xmax)
