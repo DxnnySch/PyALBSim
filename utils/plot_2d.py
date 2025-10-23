@@ -47,10 +47,12 @@ def plot_2d_better(
     xlim: Tuple[int, int] | None = None,
     params: dict | None = None,
     save_path: str | None = None,
+    padding: int = 50,
 ):
     """
     Plots a line diagram, shows it full-screen, and optionally saves it.
     Optionally adds parameter info from a dictionary into the image.
+    Automatically calculates x-limits based on non-zero y-values if xlim is not provided.
 
     Args:
         data (np.ndarray): A (N,) array of numbers.
@@ -60,6 +62,7 @@ def plot_2d_better(
         xlim (tuple[int, int], optional): Range of x-values to display, e.g. (100, 200).
         params (dict, optional): Parameters to annotate in the plot.
         save_path (str, optional): If given, the plot is saved to this path.
+        padding (int): Number of samples to add before and after non-zero region (default: 50).
     """
 
     fig, ax = plt.subplots(figsize=(10, 6))
@@ -77,6 +80,23 @@ def plot_2d_better(
     ax.set_ylabel(ylabel)
     # ax.legend()
     ax.grid(True)
+
+    # Calculate x-limits based on non-zero y-values if not provided
+    if xlim is None:
+        # Find indices where data is non-zero
+        non_zero_indices = np.where(data != 0)[0]
+        
+        if len(non_zero_indices) > 0:
+            # Get the first and last non-zero indices
+            first_non_zero = non_zero_indices[0]
+            last_non_zero = non_zero_indices[-1]
+            
+            # Add padding before and after
+            start_idx = max(0, first_non_zero - padding)
+            end_idx = min(len(data) - 1, last_non_zero + padding)
+            
+            ax.set_xlim(start_idx, end_idx)
+        # If all values are zero, keep default x-limits
 
     if xlim is not None:
         ax.set_xlim(*xlim)
