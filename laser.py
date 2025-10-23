@@ -22,12 +22,8 @@ class Laser:
         self.pulse = np.exp(-(self.t_steps ** 2) / (2 * self.sigma_t ** 2))
         # normalize to probability mass function (sum = 1)
         self.pulse /= self.pulse.sum()
-        
+
     def get_emission_times(self, num_photons: int, rng: np.random.Generator):
         indices = rng.choice(len(self.t_steps), size=num_photons, p=self.pulse)
         time_step_offsets = indices - len(self.t_steps) // 2  # relative to center (0)
         return np.array(time_step_offsets * self.dt, dtype=np.float32)
-
-
-
-

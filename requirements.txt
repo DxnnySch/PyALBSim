@@ -3,3 +3,5 @@ scipy
 tabulate
 matplotlib
 line_profiler
+pandas
+scikit-learn

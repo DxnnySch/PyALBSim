@@ -16,7 +16,7 @@ from laser import Laser
 from world import World
 from utils.photon_state import PhotonState
 import utils.numpy_vector as np_vec
-from utils.plot_2d import plot_2d
+from utils.plot_2d import plot_2d, plot_2d_better
 from utils.visualize_paths import visualize_photon_paths
 from utils.plot_scatter_2d import plot_scatter_2d
 from utils.plot_histogram import plot_histogram
@@ -521,11 +521,11 @@ if __name__ == "__main__":
     
     steps = options.get("steps", 5000)
     simulation = Simulation(rng, steps, options)
-    print(f"{steps} steps, this will simulate {steps * simulation.world_settings.light_speed_air * simulation.time_step} m")
+    print(f"{steps} steps, this will simulate {steps * simulation.world_settings.light_speed_air / simulation.camera_settings.sample_rate} m")
     print(f"distance laser - seafloor is {round(np.dot(np.array([0, -simulation.camera_settings.distance_seafloor_flying_height, 0]), np.array([0, 1, 0]))/np.dot(np_vec.normalize_vector(np.array(simulation.laser_settings.laser_direction)), np.array([0, 1, 0])), 2)} m")
     start = time.time()
-    photons_per_batch = 15_000
-    batches = 12
+    photons_per_batch = 1_000
+    batches = 1
     visualize_paths = 0
 
     profiler = cProfile.Profile()
@@ -555,8 +555,8 @@ if __name__ == "__main__":
     print(f"time saving: {elapsed:.6f} seconds = {(elapsed / 60):.2f} min")
 
     start = time.time()
-    photons_per_batch = 10_000
-    batches = 12
+    photons_per_batch = 1_000
+    batches = 1
 
     profiler = cProfile.Profile()
     profiler.enable()
@@ -573,7 +573,7 @@ if __name__ == "__main__":
     stats = pstats.Stats(profiler).sort_stats('tottime')
     stats.print_stats(30)  # Top 30 functions
 
-    plot_2d(simulation.return_waveform, title="waveform", ylabel="Intensity", xlabel="Sample")
+    plot_2d_better(simulation.return_waveform, title="waveform", ylabel="Intensity", xlabel="Sample", xlim=(650,800), params={"asb": 234, "asdlkj": 213423}, save_path="test.png")
     photons_bottom_reflections = np.array(simulation.photons_found_bottom_reflection)
     print(f"{np.count_nonzero(photons_bottom_reflections == 0)} sensor photons found no bottom reflection photons, {(np.count_nonzero(photons_bottom_reflections == 0) / len(photons_bottom_reflections) * 100):.3f} %")
     photons_scatters = np.array(simulation.photons_found_scatter)

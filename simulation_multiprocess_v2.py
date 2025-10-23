@@ -35,7 +35,7 @@ def backward_worker_init(shared_photon_array):
     global photon_array, photon_tree
     photon_array = shared_photon_array
     photon_tree = KDTree(np.array(photon_array["position"]))
-    print(f"Worker PID {mp.current_process().pid}: KDTree built")
+    # print(f"Worker PID {mp.current_process().pid}: KDTree built")
 
 
 # ==============================
