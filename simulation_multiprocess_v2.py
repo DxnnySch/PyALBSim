@@ -1,10 +1,11 @@
+import math
 import multiprocessing as mp
 import secrets, time, sys
 import numpy as np
 from scipy.spatial import KDTree
 
 from simulation import Simulation
-from utils.plot_2d import plot_2d
+from utils.plot_2d import plot_2d, plot_2d_better
 
 # ==============================
 # Globals for backward workers
@@ -74,15 +75,24 @@ def run_with_progress(pool, worker, args_list, label, total_batches):
 # ==============================
 if __name__ == "__main__":
     start = time.time()
-    steps = 5000
-    nproc = 4
+    options = {
+        "flying_height": 300,
+        "water_depth": 8,
+        "sample_rate": 2_000_000_000,
+        "sample_multiplier": 10,
+        # "absorption_coefficient": 0.114,
+        # "total_scattering_coefficient": 0.037
+    }
+    distance = ((options["flying_height"] + options["water_depth"]) / math.cos(math.radians(15)))
+    steps = int(1.5 * (distance * round(options["sample_rate"])) / 2.998e8)
+    nproc = 16
 
     # ------------------------------
     # Forward pass (parallel + progress)
     # ------------------------------
-    photons_per_batch = 20_000
-    forward_batches = 8
-    forward_args = [(photons_per_batch, steps, secrets.randbits(64))
+    photons_per_batch = 10_000
+    forward_batches = 16*2
+    forward_args = [(photons_per_batch, steps, secrets.randbits(64), options)
                     for _ in range(forward_batches)]
 
     print("Starting forward pass...")
@@ -97,11 +107,11 @@ if __name__ == "__main__":
     # ------------------------------
     # Backward pass (parallel + persistent KDTree + progress)
     # ------------------------------
-    photons_per_batch = 20_000
-    backward_batches = 8
+    photons_per_batch = 10_000
+    backward_batches = 16*10
 
     # Build args list for backward batches (seeds only)
-    backward_args = [(photons_per_batch, steps, secrets.randbits(64))
+    backward_args = [(photons_per_batch, steps, secrets.randbits(64), options)
                      for _ in range(backward_batches)]
 
     print("Starting backward pass...")
@@ -116,4 +126,4 @@ if __name__ == "__main__":
     total_waveform = np.sum(backward_results, axis=0)
     print("Simulation finished.")
     print(f"Total time {(time.time()-start):.2f} s ({(time.time()-start)/60:.2f} min)")
-    plot_2d(total_waveform, title="waveform", ylabel="Intensity", xlabel="Sample")
+    plot_2d_better(total_waveform, title="waveform", ylabel="Intensity", xlabel="Sample", save_path="images/latest_waveform_zoomed_v16.png", show=True, params=options, xlim=(4130, 4300))

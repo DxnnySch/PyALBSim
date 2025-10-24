@@ -48,6 +48,7 @@ def plot_2d_better(
     params: dict | None = None,
     save_path: str | None = None,
     padding: int = 50,
+    show: bool = False
 ):
     """
     Plots a line diagram, shows it full-screen, and optionally saves it.
@@ -130,4 +131,5 @@ def plot_2d_better(
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
         print(f"✅ Plot saved to {save_path}")
 
-    # plt.show()
+    if show:
+        plt.show()

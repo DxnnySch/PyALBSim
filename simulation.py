@@ -40,7 +40,7 @@ class Simulation:
         self.number_of_photons = 1e5 # Number of photon packets.
         self.photon_survival_threshold_weight = 0.0001 # epsilon
 
-        self.sample_multiplier = options.get("sample_multiplier", 10)
+        self.sample_multiplier = options.get("sample_multiplier", 100)
 
         self.camera_settings = Camera(options.get("flying_height", 20), options.get("water_depth", 2), options.get("sample_rate", 5_000_000_000))
         self.laser_settings = Laser(self.camera_settings, self.sample_multiplier, 0.1, 1 * 1e-3, 10 * 1e-3 / 2, 0.532, options.get("t_max", 50e-9))

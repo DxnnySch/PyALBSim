@@ -7,8 +7,8 @@ from utils.plot_histogram import plot_histogram
 from world import World
 rng = np.random.default_rng(42)
 
-laser_settings = Laser()
 camera_settings = Camera()
+laser_settings = Laser(camera_settings, 10)
 world_settings = World(laser_settings, camera_settings)
 
 rand_vals = rng.random(10000).astype(np.float32)
