@@ -9,7 +9,7 @@ import matplotlib
 matplotlib.use("TkAgg")
 from hypercube_xlim_regression import predict_xlim
 
-# Create Latin Hypercube for 3 variables
+# Create Latin Hypercube for 10 variables
 sampler = qmc.LatinHypercube(d=10)
 sample = sampler.random(n=50)
 
@@ -55,7 +55,7 @@ if __name__ == "__main__":
         options = {
             'flying_height': row["flying_height"],
             'water_depth': row["water_depth"],
-            'sample_rate': round(row["sample_rate"]),
+            'sample_rate': round(15e9),
             'sample_multiplier': 50,
             't_max': row["t_max"],
             'absorption_coefficient': row["absorption_coefficient"],
@@ -68,14 +68,14 @@ if __name__ == "__main__":
         print(options)
         print([float(options["flying_height"]), float(options["water_depth"]), float(options["sample_rate"])])
         start = time.time()
-        nproc = 24
+        nproc = 16
         options["num_workers"] = nproc
 
         # ------------------------------
         # Forward pass (parallel + progress)
         # ------------------------------
         photons_per_batch = 10_000
-        forward_batches = 24
+        forward_batches = 16
         
         options["photons_per_batch_forward"] = photons_per_batch
         options["batches_forward"] = forward_batches
@@ -98,7 +98,7 @@ if __name__ == "__main__":
         # Backward pass (parallel + persistent KDTree + progress)
         # ------------------------------
         photons_per_batch = 10_000
-        backward_batches = 24
+        backward_batches = 16
         
         options["photons_per_batch_backward"] = photons_per_batch
         options["batches_backward"] = backward_batches
@@ -125,5 +125,5 @@ if __name__ == "__main__":
         # xmin =  -1259.7848010107764 + np.dot(np.array([3.81108559e+01, 3.56798396e+01, 1.87900348e-07]), np.array([options["flying_height"], options["water_depth"], options["sample_rate"]]))
         # xmax =  -1384.4673576234168 + np.dot(np.array([4.17736964e+01, 4.21878048e+01, 2.06038173e-07]), np.array([options["flying_height"], options["water_depth"], options["sample_rate"]]))
         print(predict_xlim(options["flying_height"], options["water_depth"], options["sample_rate"], options["sample_multiplier"]))
-        plot_2d_better(total_waveform, title="waveform", ylabel="Intensity", xlabel="Sample", save_path=f"images/hypercube-sample-v7/{index}-full.png", params=options) # , xlim=(xmin, xmax)
-        plot_2d_better(total_waveform, title="waveform", ylabel="Intensity", xlabel="Sample", save_path=f"images/hypercube-sample-v7/{index}.png", params=options, xlim=predict_xlim(options["flying_height"], options["water_depth"], options["sample_rate"], options["sample_multiplier"])) # , xlim=(xmin, xmax)
+        plot_2d_better(total_waveform, title="waveform", ylabel="Intensity", xlabel="Sample", save_path=f"images/hypercube-sample-v8/{index}-full.png", params=options) # , xlim=(xmin, xmax)
+        plot_2d_better(total_waveform, title="waveform", ylabel="Intensity", xlabel="Sample", save_path=f"images/hypercube-sample-v8/{index}.png", params=options, xlim=predict_xlim(options["flying_height"], options["water_depth"], options["sample_rate"], options["sample_multiplier"])) # , xlim=(xmin, xmax)

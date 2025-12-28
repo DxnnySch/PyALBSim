@@ -74,56 +74,66 @@ def run_with_progress(pool, worker, args_list, label, total_batches):
 # Main driver
 # ==============================
 if __name__ == "__main__":
-    start = time.time()
-    options = {
-        "flying_height": 300,
-        "water_depth": 8,
-        "sample_rate": 2_000_000_000,
-        "sample_multiplier": 10,
-        # "absorption_coefficient": 0.114,
-        # "total_scattering_coefficient": 0.037
-    }
-    distance = ((options["flying_height"] + options["water_depth"]) / math.cos(math.radians(15)))
-    steps = int(1.5 * (distance * round(options["sample_rate"])) / 2.998e8)
-    nproc = 16
+    total_waveform = np.array([1])
+    total_time = time.time()
+    num_rounds = 5
+    for i in range(num_rounds):
+        start = time.time()
+        options = {
+            "flying_height": 135,
+            "water_depth": 3,
+            "sample_rate": 2_000_000_000,
+            "sample_multiplier": 10,
+            # "absorption_coefficient": 0.114,
+            # "total_scattering_coefficient": 0.037
+        }
+        distance = ((options["flying_height"] + options["water_depth"]) / math.cos(math.radians(15)))
+        steps = int(1.5 * (distance * round(options["sample_rate"])) / 2.998e8)
+        nproc = 16
 
-    # ------------------------------
-    # Forward pass (parallel + progress)
-    # ------------------------------
-    photons_per_batch = 10_000
-    forward_batches = 16*2
-    forward_args = [(photons_per_batch, steps, secrets.randbits(64), options)
-                    for _ in range(forward_batches)]
+        # ------------------------------
+        # Forward pass (parallel + progress)
+        # ------------------------------
+        photons_per_batch = 15_000
+        forward_batches = 16*2
+        forward_args = [(photons_per_batch, steps, secrets.randbits(64), options)
+                        for _ in range(forward_batches)]
 
-    print("Starting forward pass...")
-    with mp.Pool(processes=nproc) as pool:
-        forward_results = run_with_progress(pool, forward_worker,
-                                            forward_args, "Forward", forward_batches)
+        print("Starting forward pass...")
+        with mp.Pool(processes=nproc) as pool:
+            forward_results = run_with_progress(pool, forward_worker,
+                                                forward_args, "Forward", forward_batches)
 
-    photon_np_array = np.concatenate([res for res in forward_results if res is not None])
-    print(f"Photon map has {len(photon_np_array):,} entries, "
-          f"size {(sys.getsizeof(photon_np_array)/1024/1024):.2f} MiB")
+        photon_np_array = np.concatenate([res for res in forward_results if res is not None])
+        print(f"Photon map has {len(photon_np_array):,} entries, "
+            f"size {(sys.getsizeof(photon_np_array)/1024/1024):.2f} MiB")
 
-    # ------------------------------
-    # Backward pass (parallel + persistent KDTree + progress)
-    # ------------------------------
-    photons_per_batch = 10_000
-    backward_batches = 16*10
+        # ------------------------------
+        # Backward pass (parallel + persistent KDTree + progress)
+        # ------------------------------
+        photons_per_batch = 15_000
+        backward_batches = 16*50
 
-    # Build args list for backward batches (seeds only)
-    backward_args = [(photons_per_batch, steps, secrets.randbits(64), options)
-                     for _ in range(backward_batches)]
+        # Build args list for backward batches (seeds only)
+        backward_args = [(photons_per_batch, steps, secrets.randbits(64), options)
+                        for _ in range(backward_batches)]
 
-    print("Starting backward pass...")
-    start_time = time.time()
-    with mp.Pool(processes=nproc,
-                 initializer=backward_worker_init,
-                 initargs=(photon_np_array,)) as pool:
-        print(f"initialized workers in {(time.time()-start_time):.2f} s ({(time.time()-start_time)/60:.2f} min)")
-        backward_results = run_with_progress(pool, backward_worker_batch,
-                                             backward_args, "Backward", backward_batches)
+        print("Starting backward pass...")
+        start_time = time.time()
+        with mp.Pool(processes=nproc,
+                    initializer=backward_worker_init,
+                    initargs=(photon_np_array,)) as pool:
+            print(f"initialized workers in {(time.time()-start_time):.2f} s ({(time.time()-start_time)/60:.2f} min)")
+            backward_results = run_with_progress(pool, backward_worker_batch,
+                                                backward_args, "Backward", backward_batches)
 
-    total_waveform = np.sum(backward_results, axis=0)
+        round_waveform = np.sum(backward_results, axis=0)
+        if i == 0:
+            total_waveform = round_waveform
+        else:
+            total_waveform += round_waveform
+        print(f"Round {i+1} of {num_rounds} finished.")
+        print(f"Round time {(time.time()-start):.2f} s ({(time.time()-start)/60:.2f} min)")
     print("Simulation finished.")
-    print(f"Total time {(time.time()-start):.2f} s ({(time.time()-start)/60:.2f} min)")
-    plot_2d_better(total_waveform, title="waveform", ylabel="Intensity", xlabel="Sample", save_path="images/latest_waveform_zoomed_v16.png", show=True, params=options, xlim=(4130, 4300))
+    print(f"Total time {(time.time()-total_time):.2f} s ({(time.time()-total_time)/60:.2f} min)")
+    plot_2d_better(total_waveform, title="waveform", ylabel="Intensity", xlabel="Sample", save_path="images/latest_waveform_zoomed_v19.png", show=True, params=options, xlim=(270, 330))

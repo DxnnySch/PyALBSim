@@ -517,16 +517,28 @@ class Simulation:
 
 if __name__ == "__main__":
     rng = np.random.default_rng(secrets.randbits(128))
-    options = {}
+    options = {
+        "flying_height": 135,
+        "water_depth": 3,
+        "sample_rate": 2_000_000_000,
+        "sample_multiplier": 10,
+        # "absorption_coefficient": 0.114,
+        # "total_scattering_coefficient": 0.037
+    }
+    distance = ((options["flying_height"] + options["water_depth"]) / math.cos(math.radians(15)))
+    steps = int(1.5 * (distance * round(options["sample_rate"])) / 2.998e8)
     
-    steps = options.get("steps", 5000)
     simulation = Simulation(rng, steps, options)
-    print(f"{steps} steps, this will simulate {steps * simulation.world_settings.light_speed_air / simulation.camera_settings.sample_rate} m")
-    print(f"distance laser - seafloor is {round(np.dot(np.array([0, -simulation.camera_settings.distance_seafloor_flying_height, 0]), np.array([0, 1, 0]))/np.dot(np_vec.normalize_vector(np.array(simulation.laser_settings.laser_direction)), np.array([0, 1, 0])), 2)} m")
+    # print(f"{steps} steps, this will simulate {steps * simulation.world_settings.light_speed_air / simulation.camera_settings.sample_rate} m")
+    # print(f"distance laser - seafloor is {round(np.dot(np.array([0, -simulation.camera_settings.distance_seafloor_flying_height, 0]), np.array([0, 1, 0]))/np.dot(np_vec.normalize_vector(np.array(simulation.laser_settings.laser_direction)), np.array([0, 1, 0])), 2)} m")
     start = time.time()
-    photons_per_batch = 1_000
-    batches = 1
+    photons_per_batch = 15_000
+    batches = 20
     visualize_paths = 0
+    
+    # ------------------------------
+    # Forward pass
+    # ------------------------------
 
     profiler = cProfile.Profile()
     profiler.enable()
@@ -544,7 +556,9 @@ if __name__ == "__main__":
     stats = pstats.Stats(profiler).sort_stats('tottime')
     stats.print_stats(30)  # Top 30 functions
 
-
+    # ------------------------------
+    # saving
+    # ------------------------------
     start = time.time()
     simulation.photon_np_array = np.concatenate(simulation.photon_batches)
     # np.save(f"photon-map_{(photons_per_batch*batches):,}-photons.npy", simulation.photon_np_array)
@@ -554,9 +568,13 @@ if __name__ == "__main__":
     elapsed = time.time() - start
     print(f"time saving: {elapsed:.6f} seconds = {(elapsed / 60):.2f} min")
 
+    # ------------------------------
+    # Backward pass
+    # ------------------------------
+
     start = time.time()
-    photons_per_batch = 1_000
-    batches = 1
+    photons_per_batch = 5_000
+    batches = 5
 
     profiler = cProfile.Profile()
     profiler.enable()
