@@ -60,6 +60,9 @@ class Simulation:
         self.photons_found_bottom_reflection = []
         self.photons_found_surface_reflection = []
         self.photons_found_scatter = []
+        
+        self.photons_in_radius = {x: [] for x in list(PhotonType)}
+        self.k_nearest_photons_distance = {x: [] for x in list(PhotonType)}
 
     @profile
     def simulate_batch(self, num_photons: int, steps: int, forward: bool = True, num_samples_history: int = 0):
@@ -136,6 +139,15 @@ class Simulation:
                 distance_upper_bound=(0.5 if photon_type == PhotonType.SCATTER else 0.2),
                 # workers=-1
             )
+
+            # Begin tests
+            idxs = self.photon_tree.query_ball_point(position, (0.1 if photon_type == PhotonType.SCATTER else 0.1))
+            self.photons_in_radius[photon_type].append(np.count_nonzero(self.photon_np_array[idxs]["type"] == photon_type))
+            k = 1000
+            distances, _ = self.photon_tree.query(position, k=k)
+            self.k_nearest_photons_distance[photon_type].append(distances[-1])
+            # End tests
+
             if not idx or idx >= len(self.photon_np_array): # nothing found
                 (self.photons_found_bottom_reflection if photon_type == PhotonType.BOTTOM_REFLECTION else (self.photons_found_scatter if photon_type == PhotonType.SCATTER else self.photons_found_surface_reflection)).append(0)
                 continue
@@ -591,12 +603,26 @@ if __name__ == "__main__":
     stats = pstats.Stats(profiler).sort_stats('tottime')
     stats.print_stats(30)  # Top 30 functions
 
-    plot_2d_better(simulation.return_waveform, title="waveform", ylabel="Intensity", xlabel="Sample", xlim=(650,800), params={"asb": 234, "asdlkj": 213423}, save_path="test.png")
+    # plot_2d_better(simulation.return_waveform, title="waveform", ylabel="Intensity", xlabel="Sample", xlim=(650,800), params=options)
     photons_bottom_reflections = np.array(simulation.photons_found_bottom_reflection)
     print(f"{np.count_nonzero(photons_bottom_reflections == 0)} sensor photons found no bottom reflection photons, {(np.count_nonzero(photons_bottom_reflections == 0) / len(photons_bottom_reflections) * 100):.3f} %")
     photons_scatters = np.array(simulation.photons_found_scatter)
     print(f"{np.count_nonzero(photons_scatters == 0)} sensor photons found no scatter photons, {(np.count_nonzero(photons_scatters == 0) / len(photons_scatters) * 100):.3f} %")
     photons_surface_reflections = np.array(simulation.photons_found_surface_reflection)
     print(f"{np.count_nonzero(photons_surface_reflections == 0)} sensor photons found no surface reflection photons, {(np.count_nonzero(photons_surface_reflections == 0) / len(photons_surface_reflections) * 100):.3f} %")
-    # plot_histogram(photons_reflections[photons_reflections < 400], bins = 400, title="Number of Photons found at Reflections", xlabel="Photons in Radius")
+    
+    
+    for x in list(PhotonType):
+        y = np.array(simulation.photons_in_radius[x])
+        z = np.array(simulation.k_nearest_photons_distance[x])
+        print(x)
+        print("min", y.min())
+        print("max", y.max())
+        print("mean", y.mean())
+        print(f"{np.count_nonzero(y == 0)} sensor photons found no {x} photons, {(np.count_nonzero(y == 0) / len(y) * 100):.3f} %")
+        print("min dist", z.min())
+        print("max dist", z.max())
+        print("mean dist", z.mean())
+    # photons_surface_in_radius = np.array(simulation.photons_in_radius[PhotonType.SURFACE_REFLECTION])
+    # plot_histogram(photons_surface_in_radius[photons_surface_in_radius < 400], bins = 400, title="Number of Photons found at surface Reflections", xlabel="Photons in Radius")
     # plot_histogram(photons_scatters[photons_scatters < 400], bins = 400, title="Number of Photons found at Scatters", xlabel="Photons in Radius") 
