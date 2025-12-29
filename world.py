@@ -8,6 +8,8 @@ import numpy as np
 from utils.gpt_ffscatter import sample_scattering_directions_batch
 from tabulate import tabulate
 
+from utils.numpy_vector import normalize_batch, normalize_vector
+
 
 
 class World:
@@ -94,6 +96,37 @@ class World:
         cdf_upper = np.interp(theta_upper, self.oowb_ff_scatter_theta, self.oowb_ff_scatter_cdf)
 
         return cdf_upper - cdf_lower
+    
+    def scatter_energy_batch(self, a_dir, b_dir):
+        """
+        a_dir: (k, 3) photon directions
+        b_dir: (3,)   view direction
+        returns: (k,)
+        """
+        # Normalize
+        a_dir = normalize_batch(a_dir)
+        b_dir = normalize_vector(b_dir)
+
+        cos_theta = np.einsum("ij,j->i", a_dir, b_dir)
+        cos_theta = np.clip(cos_theta, -1.0, 1.0)
+        scatter_angle = np.arccos(cos_theta)
+
+        delta = (np.pi - self.epsilon) / self.ff_scatter_divisions
+        i = ((scatter_angle - self.epsilon) / delta).astype(int)
+        i = np.clip(i, 0, self.ff_scatter_divisions - 1)
+
+        theta_lower = i * delta
+        theta_upper = (i + 1) * delta
+
+        cdf_lower = np.interp(theta_lower,
+                            self.oowb_ff_scatter_theta,
+                            self.oowb_ff_scatter_cdf)
+        cdf_upper = np.interp(theta_upper,
+                            self.oowb_ff_scatter_theta,
+                            self.oowb_ff_scatter_cdf)
+
+        return cdf_upper - cdf_lower
+
 
     def sample_scattering_directions_batch(self, incoming_dirs, rng):
         return sample_scattering_directions_batch(self.oowb_ff_scatter_pf, self.oowb_ff_scatter_theta, incoming_dirs, rng)
