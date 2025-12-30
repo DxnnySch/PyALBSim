@@ -159,7 +159,7 @@ class Simulation:
         time_steps: NDArray[np.float32],
         photon_type: PhotonType
     ) -> None:
-        k = 100
+        k = 1000
         for position, direction, energy, time_step in zip(positions, directions, energies, time_steps):
             dist, idx = self.photon_maps[photon_type].tree.query(position, k=k)
             # _, idx = self.photon_tree.query(
@@ -610,8 +610,8 @@ if __name__ == "__main__":
     # print(f"{steps} steps, this will simulate {steps * simulation.world_settings.light_speed_air / simulation.camera_settings.sample_rate} m")
     # print(f"distance laser - seafloor is {round(np.dot(np.array([0, -simulation.camera_settings.distance_seafloor_flying_height, 0]), np.array([0, 1, 0]))/np.dot(np_vec.normalize_vector(np.array(simulation.laser_settings.laser_direction)), np.array([0, 1, 0])), 2)} m")
     start = time.time()
-    photons_per_batch = 15_000
-    batches = 20
+    photons_per_batch = 10_000
+    batches = 10
     visualize_paths = 0
     
     # ------------------------------

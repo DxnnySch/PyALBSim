@@ -4,3 +4,4 @@ __pycache__
 *.7z
 .venv-linux
 .venv-laptop
+.venv*
