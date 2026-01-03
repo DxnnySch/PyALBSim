@@ -128,28 +128,6 @@ class Simulation:
         self.photon_storage.times[photon_type].append(time_steps)
         self.photon_storage.already_reflected[photon_type].append(already_reflected)
 
-    # def store_photons(
-    #     self,
-    #     positions: NDArray[np.float32],
-    #     directions: NDArray[np.float32],
-    #     energies: NDArray[np.float32],
-    #     time_steps: NDArray[np.float32],
-    #     photon_type: PhotonType,
-    #     already_reflected = None
-    # ) -> None:
-    #     n = positions.shape[0]
-    #     new_photons = np.empty(n, dtype=photon_dtype)
-    #     if already_reflected is None:
-    #         already_reflected = np.full(n, True)
-    #     new_photons["position"] = positions
-    #     new_photons["direction"] = directions
-    #     new_photons["energy"] = energies
-    #     new_photons["time"] = time_steps
-    #     new_photons["type"] = photon_type
-    #     new_photons["already_reflected"] = already_reflected
-
-    #     self.photon_batches.append(new_photons)
-
     @profile
     def sample_photons(
         self,
@@ -159,58 +137,12 @@ class Simulation:
         time_steps: NDArray[np.float32],
         photon_type: PhotonType
     ) -> None:
-        k = 1000
+        k = 100
         for position, direction, energy, time_step in zip(positions, directions, energies, time_steps):
             dist, idx = self.photon_maps[photon_type].tree.query(position, k=k)
-            # _, idx = self.photon_tree.query(
-            #     position,
-            #     distance_upper_bound=(0.5 if photon_type == PhotonType.SCATTER else 0.2),
-            #     # workers=-1
-            # )
-
-            # Begin tests
-            # idxs = self.photon_tree.query_ball_point(position, (0.1 if photon_type == PhotonType.SCATTER else 0.1))
-            # self.photons_in_radius[photon_type].append(np.count_nonzero(self.photon_np_array[idxs]["type"] == photon_type))
-            # k = 1000
-            # distances, _ = self.photon_tree.query(position, k=k)
-            # self.k_nearest_photons_distance[photon_type].append(distances[-1])
-            # End tests
-
-            # Temp commented
-            # if not idx or idx >= len(self.photon_maps[photon_type].data.positions): # nothing found
-            #     (self.photons_found_bottom_reflection if photon_type == PhotonType.BOTTOM_REFLECTION else (self.photons_found_scatter if photon_type == PhotonType.SCATTER else self.photons_found_surface_reflection)).append(0)
-            #     continue
-
-            # photon = self.photon_np_array[idx]
-            # if photon["type"] != photon_type or np.linalg.norm(photon["position"] - position) > (0.5 if type == PhotonType.SCATTER else 0.2):
-            #     (self.photons_found_bottom_reflection if photon_type == PhotonType.BOTTOM_REFLECTION else (self.photons_found_scatter if photon_type == PhotonType.SCATTER else self.photons_found_surface_reflection)).append(0)
-            #     continue
-            # else:
-            #     (self.photons_found_bottom_reflection if photon_type == PhotonType.BOTTOM_REFLECTION else (self.photons_found_scatter if photon_type == PhotonType.SCATTER else self.photons_found_surface_reflection)).append(1)
-
-            # _, photon_direction, photon_energy, photon_time_step, _, _ = photon
             photon_direction = self.photon_maps[photon_type].data.directions[idx]
             photon_energy = self.photon_maps[photon_type].data.energies[idx]
             photon_time_step = self.photon_maps[photon_type].data.times[idx]
-
-            # if photon_type == PhotonType.BOTTOM_REFLECTION: 
-            #     store_energy = energy * photon_energy * (self.world_settings.seafloor_albedo / np.pi) * max(0, np_vec.dot_vector(np.array([0, 1, 0]), -direction))
-            #     store_time = time_step + photon_time_step
-
-            #     self.return_waveform[int(store_time / self.sample_multiplier)] += store_energy
-            # elif photon_type == PhotonType.SCATTER:
-            #     # Vector from scatter point to sensor (i.e. reverse of backward ray)
-            #     view_dir = -direction
-
-            #     store_energy = energy * photon_energy * self.world_settings.scatter_energy(photon_direction, view_dir)
-
-            #     store_time = time_step + photon_time_step
-            #     self.return_waveform[int(store_time / self.sample_multiplier)] += store_energy
-            # elif photon_type == PhotonType.SURFACE_REFLECTION:
-            #     store_energy = energy * photon_energy * np_vec.microfacet_brdf(-photon_direction, -direction, np.array([0, 1, 0]), self.world_settings.water_surface_roughness, self.world_settings.base_reflectance, self.world_settings.water_surface_albedo)
-            #     store_time = time_step + photon_time_step
-
-            #     self.return_waveform[int(store_time / self.sample_multiplier)] += store_energy
 
             if photon_type == PhotonType.BOTTOM_REFLECTION: 
                 cos_term = np.maximum(
@@ -627,6 +559,7 @@ if __name__ == "__main__":
         print(f"{i+1} in {(time.time() - start):.2f} s = {((time.time() - start) / 60):.2f} min, estimated remaining: {((((time.time() - start) / 60) / (i+1)) * (batches - (i + 1))):.2f} min")
 
     profiler.disable()
+    profiler.dump_stats("forward.prof")
 
     elapsed = time.time() - start
     print(f"time forward: {elapsed:.6f} seconds = {(elapsed / 60):.2f} min")
@@ -667,6 +600,7 @@ if __name__ == "__main__":
         print(f"{i+1} in {(time.time() - start):.2f} s = {((time.time() - start) / 60):.2f} min, estimated remaining: {((time.time() - start) / 60 / (i+1) * (batches - (i + 1))):.2f} min")
 
     profiler.disable()
+    profiler.dump_stats("backward.prof")
 
     elapsed = time.time() - start
     print(f"time backward: {elapsed:.6f} seconds = {(elapsed / 60):.2f} min")

@@ -99,8 +99,8 @@ if __name__ == "__main__":
         # ------------------------------
         # Forward pass (parallel + progress)
         # ------------------------------
-        photons_per_batch = 20_000
-        forward_batches = (os.process_cpu_count() - 1) * 2
+        photons_per_batch = 10_000
+        forward_batches = (os.process_cpu_count() - 1) * 1
         forward_args = [(photons_per_batch, steps, secrets.randbits(64), options)
                         for _ in range(forward_batches)]
 
@@ -121,7 +121,7 @@ if __name__ == "__main__":
         # ------------------------------
         # Backward pass (parallel + persistent KDTree + progress)
         # ------------------------------
-        photons_per_batch = 10_000
+        photons_per_batch = 5_000
         backward_batches = os.process_cpu_count() - 1
 
         # Build args list for backward batches (seeds only)
