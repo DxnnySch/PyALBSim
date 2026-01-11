@@ -291,3 +291,46 @@ def microfacet_brdf(omega_i, omega_o, normal, alpha: float, F0: float, rho_d=0.0
     spec = (D * F * G) / (4.0 * n_dot_i * n_dot_o + 1e-12)
     diff = rho_d / np.pi
     return spec + diff
+
+def microfacet_brdf_batch(
+    omega_i,        # (k, 3)
+    omega_o,        # (3,)
+    normal,         # (3,)
+    alpha: float,
+    F0: float,
+    rho_d: float = 0.0,
+):
+    omega_i = normalize_batch(omega_i)
+    omega_o = normalize_vector(omega_o)
+    n = normalize_vector(normal)
+
+    n_dot_i = np.maximum(0.0, np.einsum("ij,j->i", -omega_i, n))
+    n_dot_o = max(0.0, np.dot(n, omega_o))
+
+    valid = (n_dot_i > 0) & (n_dot_o > 0)
+    if not np.any(valid):
+        return np.zeros(len(omega_i))
+
+    h = normalize_batch(omega_i + omega_o)
+    n_dot_h = np.maximum(0.0, np.einsum("ij,j->i", h, n))
+    v_dot_h = np.maximum(0.0, np.einsum("j,ij->i", omega_o, h))
+
+    # GGX
+    a2 = alpha * alpha
+    denom = (n_dot_h**2 * (a2 - 1.0) + 1.0)
+    D = a2 / (np.pi * denom**2)
+
+    F = F0 + (1 - F0) * (1 - v_dot_h)**5
+
+    def G1(n_dot_x):
+        denom = n_dot_x + np.sqrt(a2 + (1 - a2) * n_dot_x**2)
+        return 2.0 * n_dot_x / denom
+
+    G = G1(n_dot_o) * G1(n_dot_i)
+
+    spec = (D * F * G) / (4.0 * n_dot_i * n_dot_o + 1e-12)
+    diff = rho_d / np.pi
+
+    out = np.zeros(len(omega_i))
+    out[valid] = spec[valid] + diff
+    return out

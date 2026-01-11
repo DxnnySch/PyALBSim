@@ -125,7 +125,8 @@ def plot_2d_better(
         )
 
     plt.tight_layout()
-    plt.subplots_adjust(left=0.05, bottom=0.075, right=0.975, top=0.945)
+    # plt.subplots_adjust(left=0.05, bottom=0.075, right=0.975, top=0.945)
+    plt.subplots_adjust(left=0.05, bottom=0.275, right=0.775, top=0.95) # laptop
 
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches='tight')

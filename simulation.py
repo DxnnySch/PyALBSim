@@ -13,6 +13,10 @@ from enum import Enum
 
 from camera import Camera
 from laser import Laser
+from utils.photon_mapping.build_photon_map_data import build_photon_map_data
+from utils.photon_mapping.photon_map_index import PhotonMapIndex
+from utils.photon_mapping.photon_storage import PhotonStorage
+from utils.photon_mapping.print_photon_map_stats import print_photon_map_stats
 from world import World
 from utils.photon_state import PhotonState
 import utils.numpy_vector as np_vec
@@ -52,14 +56,20 @@ class Simulation:
 
         self.seafloor_reflection_function_batch = lambda direction, normals: np_vec.cosine_weighted_sample_batch(normals, self.rng)
 
-        self.photon_batches: List[NDArray] = [] # (position, direction, energy, time_step, reflection)
-        self.photon_np_array: NDArray
-        self.photon_tree: KDTree
+        # self.photon_batches: List[NDArray] = [] # (position, direction, energy, time_step, reflection)
+        # self.photon_np_array: NDArray
+        # self.photon_tree: KDTree
+
+        self.photon_storage = PhotonStorage()
+        self.photon_maps: dict[PhotonType, PhotonMapIndex] = {}
 
         self.return_waveform = np.zeros(num_steps * 2)
         self.photons_found_bottom_reflection = []
         self.photons_found_surface_reflection = []
         self.photons_found_scatter = []
+        
+        self.photons_in_radius = {x: [] for x in list(PhotonType)}
+        self.k_nearest_photons_distance = {x: [] for x in list(PhotonType)}
 
     @profile
     def simulate_batch(self, num_photons: int, steps: int, forward: bool = True, num_samples_history: int = 0):
@@ -75,7 +85,7 @@ class Simulation:
         velocities = np.full(num_photons, self.world_settings.light_speed_air, dtype=np.float32)
         energies = np.full(num_photons, 1, dtype=np.float32)
         scatter_distances = np.full(num_photons, np.inf, dtype=np.float32)
-        time_deltas = self.laser_settings.get_emission_times(num_photons, self.rng)
+        time_deltas = self.laser_settings.get_emission_times(num_photons, self.rng) if forward else np.full(num_photons, 0, dtype=np.float32)
         already_reflected = np.full(num_photons, False, dtype=bool)
 
         full_histories: List[List[NDArray[np.float32]]] = [[] for _ in range(num_samples_history)]
@@ -105,20 +115,18 @@ class Simulation:
         energies: NDArray[np.float32],
         time_steps: NDArray[np.float32],
         photon_type: PhotonType,
-        already_reflected = None
+        already_reflected: NDArray[np.bool_] | None = None,
     ) -> None:
         n = positions.shape[0]
-        new_photons = np.empty(n, dtype=photon_dtype)
-        if already_reflected is None:
-            already_reflected = np.full(n, True)
-        new_photons["position"] = positions
-        new_photons["direction"] = directions
-        new_photons["energy"] = energies
-        new_photons["time"] = time_steps
-        new_photons["type"] = photon_type
-        new_photons["already_reflected"] = already_reflected
 
-        self.photon_batches.append(new_photons)
+        if already_reflected is None:
+            already_reflected = np.full(n, True, dtype=bool)
+
+        self.photon_storage.positions[photon_type].append(positions)
+        self.photon_storage.directions[photon_type].append(directions)
+        self.photon_storage.energies[photon_type].append(energies)
+        self.photon_storage.times[photon_type].append(time_steps)
+        self.photon_storage.already_reflected[photon_type].append(already_reflected)
 
     @profile
     def sample_photons(
@@ -129,48 +137,50 @@ class Simulation:
         time_steps: NDArray[np.float32],
         photon_type: PhotonType
     ) -> None:
-        
+        k = 100
         for position, direction, energy, time_step in zip(positions, directions, energies, time_steps):
-            _, idx = self.photon_tree.query(
-                position,
-                distance_upper_bound=(0.5 if photon_type == PhotonType.SCATTER else 0.2),
-                # workers=-1
-            )
-            if not idx or idx >= len(self.photon_np_array): # nothing found
-                (self.photons_found_bottom_reflection if photon_type == PhotonType.BOTTOM_REFLECTION else (self.photons_found_scatter if photon_type == PhotonType.SCATTER else self.photons_found_surface_reflection)).append(0)
-                continue
-
-            photon = self.photon_np_array[idx]
-            if photon["type"] != photon_type or np.linalg.norm(photon["position"] - position) > (0.5 if type == PhotonType.SCATTER else 0.2):
-                (self.photons_found_bottom_reflection if photon_type == PhotonType.BOTTOM_REFLECTION else (self.photons_found_scatter if photon_type == PhotonType.SCATTER else self.photons_found_surface_reflection)).append(0)
-                continue
-            else:
-                (self.photons_found_bottom_reflection if photon_type == PhotonType.BOTTOM_REFLECTION else (self.photons_found_scatter if photon_type == PhotonType.SCATTER else self.photons_found_surface_reflection)).append(1)
-
-            _, photon_direction, photon_energy, photon_time_step, _, _ = photon
+            dist, idx = self.photon_maps[photon_type].tree.query(position, k=k)
+            photon_direction = self.photon_maps[photon_type].data.directions[idx]
+            photon_energy = self.photon_maps[photon_type].data.energies[idx]
+            photon_time_step = self.photon_maps[photon_type].data.times[idx]
 
             if photon_type == PhotonType.BOTTOM_REFLECTION: 
-                store_energy = energy * photon_energy * (self.world_settings.seafloor_albedo / np.pi) * max(0, np_vec.dot_vector(np.array([0, 1, 0]), -direction))
-                store_time = time_step + photon_time_step
+                cos_term = np.maximum(
+                    0.0,
+                    np.dot(np.array([0, 1, 0]), -direction)
+                )
+                
+                energy_multiplier = (self.world_settings.seafloor_albedo / np.pi) * cos_term
 
-                self.return_waveform[int(store_time / self.sample_multiplier)] += store_energy
+                kernel_size = np.pi * dist[-1]**2
             elif photon_type == PhotonType.SCATTER:
-                # 1. Vector from scatter point to sensor (i.e. reverse of backward ray)
+                # Vector from scatter point to sensor (i.e. reverse of backward ray)
                 view_dir = -direction
+                
+                energy_multiplier = self.world_settings.scatter_energy_batch(
+                    photon_direction, view_dir
+                )
 
-                store_energy = energy * photon_energy * self.world_settings.scatter_energy(photon_direction, view_dir)
-
-                # 5. Total time is round-trip time
-                store_time = time_step + photon_time_step
-                if 0 <= int(store_time / self.sample_multiplier) < len(self.return_waveform):
-                    self.return_waveform[int(store_time / self.sample_multiplier)] += store_energy
-                else:
-                    print("ERROR: SHOULD NEVER HAPPEN!!!!")
+                kernel_size = (4.0 / 3.0) * np.pi * dist[-1]**3
             elif photon_type == PhotonType.SURFACE_REFLECTION:
-                store_energy = energy * photon_energy * np_vec.microfacet_brdf(-photon_direction, -direction, np.array([0, 1, 0]), self.world_settings.water_surface_roughness, self.world_settings.base_reflectance, self.world_settings.water_surface_albedo)
-                store_time = time_step + photon_time_step
+                energy_multiplier = np_vec.microfacet_brdf_batch(
+                    -photon_direction,
+                    -direction,
+                    np.array([0, 1, 0]),
+                    self.world_settings.water_surface_roughness,
+                    self.world_settings.base_reflectance,
+                    self.world_settings.water_surface_albedo,
+                )
 
-                self.return_waveform[int(store_time / self.sample_multiplier)] += store_energy
+                kernel_size = np.pi * dist[-1]**2
+
+            kernel_norm = 1.0 / kernel_size
+
+            store_energy = energy * photon_energy * kernel_norm * energy_multiplier
+            store_time = time_step + photon_time_step
+            sample_idx = (store_time / self.sample_multiplier).astype(int)
+
+            np.add.at(self.return_waveform, sample_idx, store_energy)
 
 
     # ========================================
@@ -532,8 +542,8 @@ if __name__ == "__main__":
     # print(f"{steps} steps, this will simulate {steps * simulation.world_settings.light_speed_air / simulation.camera_settings.sample_rate} m")
     # print(f"distance laser - seafloor is {round(np.dot(np.array([0, -simulation.camera_settings.distance_seafloor_flying_height, 0]), np.array([0, 1, 0]))/np.dot(np_vec.normalize_vector(np.array(simulation.laser_settings.laser_direction)), np.array([0, 1, 0])), 2)} m")
     start = time.time()
-    photons_per_batch = 15_000
-    batches = 20
+    photons_per_batch = 10_000
+    batches = 10
     visualize_paths = 0
     
     # ------------------------------
@@ -549,6 +559,7 @@ if __name__ == "__main__":
         print(f"{i+1} in {(time.time() - start):.2f} s = {((time.time() - start) / 60):.2f} min, estimated remaining: {((((time.time() - start) / 60) / (i+1)) * (batches - (i + 1))):.2f} min")
 
     profiler.disable()
+    profiler.dump_stats("forward.prof")
 
     elapsed = time.time() - start
     print(f"time forward: {elapsed:.6f} seconds = {(elapsed / 60):.2f} min")
@@ -560,11 +571,16 @@ if __name__ == "__main__":
     # saving
     # ------------------------------
     start = time.time()
-    simulation.photon_np_array = np.concatenate(simulation.photon_batches)
+    # simulation.photon_np_array = np.concatenate(simulation.photon_batches)
+    photon_maps_data = build_photon_map_data(simulation.photon_storage)
+    print_photon_map_stats(photon_maps_data)
+    # print(f"{len(simulation.photon_np_array)} entries in photon list, {(sys.getsizeof(simulation.photon_np_array) / 1024):.2f} KiB")
+    for photon_type, data in photon_maps_data.items():
+        simulation.photon_maps[photon_type] = PhotonMapIndex(data)
+
     # np.save(f"photon-map_{(photons_per_batch*batches):,}-photons.npy", simulation.photon_np_array)
-    print(f"{len(simulation.photon_np_array)} entries in photon list, {(sys.getsizeof(simulation.photon_np_array) / 1024):.2f} KiB")
-    positions = np.array(simulation.photon_np_array["position"])
-    simulation.photon_tree = KDTree(positions)
+    # positions = np.array(simulation.photon_np_array["position"])
+    # simulation.photon_tree = KDTree(positions)
     elapsed = time.time() - start
     print(f"time saving: {elapsed:.6f} seconds = {(elapsed / 60):.2f} min")
 
@@ -584,6 +600,7 @@ if __name__ == "__main__":
         print(f"{i+1} in {(time.time() - start):.2f} s = {((time.time() - start) / 60):.2f} min, estimated remaining: {((time.time() - start) / 60 / (i+1) * (batches - (i + 1))):.2f} min")
 
     profiler.disable()
+    profiler.dump_stats("backward.prof")
 
     elapsed = time.time() - start
     print(f"time backward: {elapsed:.6f} seconds = {(elapsed / 60):.2f} min")
@@ -591,12 +608,26 @@ if __name__ == "__main__":
     stats = pstats.Stats(profiler).sort_stats('tottime')
     stats.print_stats(30)  # Top 30 functions
 
-    plot_2d_better(simulation.return_waveform, title="waveform", ylabel="Intensity", xlabel="Sample", xlim=(650,800), params={"asb": 234, "asdlkj": 213423}, save_path="test.png")
-    photons_bottom_reflections = np.array(simulation.photons_found_bottom_reflection)
-    print(f"{np.count_nonzero(photons_bottom_reflections == 0)} sensor photons found no bottom reflection photons, {(np.count_nonzero(photons_bottom_reflections == 0) / len(photons_bottom_reflections) * 100):.3f} %")
-    photons_scatters = np.array(simulation.photons_found_scatter)
-    print(f"{np.count_nonzero(photons_scatters == 0)} sensor photons found no scatter photons, {(np.count_nonzero(photons_scatters == 0) / len(photons_scatters) * 100):.3f} %")
-    photons_surface_reflections = np.array(simulation.photons_found_surface_reflection)
-    print(f"{np.count_nonzero(photons_surface_reflections == 0)} sensor photons found no surface reflection photons, {(np.count_nonzero(photons_surface_reflections == 0) / len(photons_surface_reflections) * 100):.3f} %")
-    # plot_histogram(photons_reflections[photons_reflections < 400], bins = 400, title="Number of Photons found at Reflections", xlabel="Photons in Radius")
+    plot_2d_better(simulation.return_waveform, title="waveform", ylabel="Intensity", xlabel="Sample", xlim=(1860,1930), params=options, show=True)
+    # photons_bottom_reflections = np.array(simulation.photons_found_bottom_reflection)
+    # print(f"{np.count_nonzero(photons_bottom_reflections == 0)} sensor photons found no bottom reflection photons, {(np.count_nonzero(photons_bottom_reflections == 0) / len(photons_bottom_reflections) * 100):.3f} %")
+    # photons_scatters = np.array(simulation.photons_found_scatter)
+    # print(f"{np.count_nonzero(photons_scatters == 0)} sensor photons found no scatter photons, {(np.count_nonzero(photons_scatters == 0) / len(photons_scatters) * 100):.3f} %")
+    # photons_surface_reflections = np.array(simulation.photons_found_surface_reflection)
+    # print(f"{np.count_nonzero(photons_surface_reflections == 0)} sensor photons found no surface reflection photons, {(np.count_nonzero(photons_surface_reflections == 0) / len(photons_surface_reflections) * 100):.3f} %")
+    
+    
+    # for x in list(PhotonType):
+    #     y = np.array(simulation.photons_in_radius[x])
+    #     z = np.array(simulation.k_nearest_photons_distance[x])
+    #     print(x)
+    #     print("min", y.min())
+    #     print("max", y.max())
+    #     print("mean", y.mean())
+    #     print(f"{np.count_nonzero(y == 0)} sensor photons found no {x} photons, {(np.count_nonzero(y == 0) / len(y) * 100):.3f} %")
+    #     print("min dist", z.min())
+    #     print("max dist", z.max())
+    #     print("mean dist", z.mean())
+    # photons_surface_in_radius = np.array(simulation.photons_in_radius[PhotonType.SURFACE_REFLECTION])
+    # plot_histogram(photons_surface_in_radius[photons_surface_in_radius < 400], bins = 400, title="Number of Photons found at surface Reflections", xlabel="Photons in Radius")
     # plot_histogram(photons_scatters[photons_scatters < 400], bins = 400, title="Number of Photons found at Scatters", xlabel="Photons in Radius") 
