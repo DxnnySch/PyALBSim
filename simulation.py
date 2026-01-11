@@ -85,7 +85,7 @@ class Simulation:
         velocities = np.full(num_photons, self.world_settings.light_speed_air, dtype=np.float32)
         energies = np.full(num_photons, 1, dtype=np.float32)
         scatter_distances = np.full(num_photons, np.inf, dtype=np.float32)
-        time_deltas = self.laser_settings.get_emission_times(num_photons, self.rng)
+        time_deltas = self.laser_settings.get_emission_times(num_photons, self.rng) if forward else np.full(num_photons, 0, dtype=np.float32)
         already_reflected = np.full(num_photons, False, dtype=bool)
 
         full_histories: List[List[NDArray[np.float32]]] = [[] for _ in range(num_samples_history)]
