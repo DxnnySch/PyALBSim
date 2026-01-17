@@ -45,8 +45,9 @@ class World:
         laser_spot_radius_surface = camera_settings.flying_height * math.tan(laser_settings.laser_divergence_angle / 2) # laser beam spot radius on the sea surface. m
         # Optical parameters of water body--- kd Diffuse attenuation coefficient
         laser_spot_diameter_surface = 2 * laser_spot_radius_surface # the lidar spot diameter on the surface
+        print("diameter surface", laser_spot_diameter_surface)
         kd = self.absorption_coefficient + 4.18 * self.particle_scattering_coefficient * self.back_scatter_proportion * (1 - 0.52 * math.exp(-10.8 * self.absorption_coefficient)) # Diffuse attenuation coefficient (Churnside, 2014)
-        # print("Kd", kd)
+        print("Kd", kd)
         self.lidar_attenuation_coefficient = kd + (self.particle_scattering_coefficient - 4.18 * self.particle_scattering_coefficient * self.back_scatter_proportion * (1 - 0.52 * math.exp(-10.8 * self.total_scattering_coefficient))) * math.exp(-0.85 * laser_spot_diameter_surface * (self.absorption_coefficient + self.particle_scattering_coefficient)) # lidar attenuation coefficient #
         self.water_single_scattering_albedo = (self.lidar_attenuation_coefficient - self.absorption_coefficient) / self.lidar_attenuation_coefficient # Single Scattering Albedo of Water
         self.attenuation_per_scatter = self.water_single_scattering_albedo # Remaining energy weight after each collision #0.5#(1 - 

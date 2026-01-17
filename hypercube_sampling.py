@@ -3,11 +3,11 @@ import numpy as np
 import pandas as pd
 import math
 from simulation_multiprocess_v2 import *
-from utils.plot_2d import plot_2d_better
+from alb_sim.plotting.plot_2d import plot_2d_better
 import utils.numpy_vector as np_vec
 import matplotlib
 matplotlib.use("TkAgg")
-from hypercube_xlim_regression import predict_xlim
+from deprecated.hypercube_xlim_regression import predict_xlim
 
 # Create Latin Hypercube for 10 variables
 sampler = qmc.LatinHypercube(d=10)

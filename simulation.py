@@ -13,17 +13,16 @@ from enum import Enum
 
 from camera import Camera
 from laser import Laser
-from utils.photon_mapping.build_photon_map_data import build_photon_map_data
-from utils.photon_mapping.photon_map_index import PhotonMapIndex
-from utils.photon_mapping.photon_storage import PhotonStorage
-from utils.photon_mapping.print_photon_map_stats import print_photon_map_stats
+from alb_sim.photon_mapping.build_photon_map_data import build_photon_map_data
+from alb_sim.photon_mapping.photon_map_index import PhotonMapIndex
+from alb_sim.photon_mapping.photon_storage import PhotonStorage
+from alb_sim.photon_mapping.print_photon_map_stats import photon_map_stats
 from world import World
-from utils.photon_state import PhotonState
+from alb_sim.utils.photon_position_state import PhotonPositionState
 import utils.numpy_vector as np_vec
-from utils.plot_2d import plot_2d, plot_2d_better
-from utils.visualize_paths import visualize_photon_paths
-from utils.plot_scatter_2d import plot_scatter_2d
-from utils.plot_histogram import plot_histogram
+from alb_sim.plotting.plot_2d import plot_2d, plot_2d_better
+from alb_sim.plotting.plot_scatter_2d import plot_scatter_2d
+from alb_sim.plotting.plot_histogram import plot_histogram
 
 
 PhotonType = Enum("PhotonType", [("BOTTOM_REFLECTION", 0), ("SCATTER", 1), ("SURFACE_REFLECTION", 2)])
@@ -40,9 +39,6 @@ photon_dtype = [
 class Simulation:
     def __init__(self, rng: np.random.Generator, num_steps, options = {}):
         self.rng = rng
-
-        self.number_of_photons = 1e5 # Number of photon packets.
-        self.photon_survival_threshold_weight = 0.0001 # epsilon
 
         self.sample_multiplier = options.get("sample_multiplier", 100)
 
@@ -64,6 +60,10 @@ class Simulation:
         self.photon_maps: dict[PhotonType, PhotonMapIndex] = {}
 
         self.return_waveform = np.zeros(num_steps * 2)
+        self.return_waveform_by_type: dict[PhotonType, NDArray[np.float32]] = {
+            type: np.zeros(num_steps * 2, dtype=np.float32)
+            for type in PhotonType
+        }
         self.photons_found_bottom_reflection = []
         self.photons_found_surface_reflection = []
         self.photons_found_scatter = []
@@ -126,7 +126,6 @@ class Simulation:
         self.photon_storage.directions[photon_type].append(directions)
         self.photon_storage.energies[photon_type].append(energies)
         self.photon_storage.times[photon_type].append(time_steps)
-        self.photon_storage.already_reflected[photon_type].append(already_reflected)
 
     @profile
     def sample_photons(
@@ -181,6 +180,7 @@ class Simulation:
             sample_idx = (store_time / self.sample_multiplier).astype(int)
 
             np.add.at(self.return_waveform, sample_idx, store_energy)
+            np.add.at(self.return_waveform_by_type[photon_type], sample_idx, store_energy)
 
 
     # ========================================
@@ -194,17 +194,17 @@ class Simulation:
         y_current: NDArray[np.float32],
         y_next: NDArray[np.float32]
     ) -> NDArray[np.int32]:
-        states = np.full_like(y_current, PhotonState.IN_AIR.value, dtype=np.int32)
+        states = np.full_like(y_current, PhotonPositionState.IN_AIR.value, dtype=np.int32)
 
         air_to_water = (y_current > self.water_surface_y) & (y_next <= self.water_surface_y)
         in_water = (y_current <= self.water_surface_y) & (y_next > self.seafloor_y)
         water_to_floor = (y_current > self.seafloor_y) & (y_next <= self.seafloor_y)
         water_to_air = (y_current <= self.water_surface_y) & (y_next > self.water_surface_y)
 
-        states[air_to_water] = PhotonState.ENTERING_WATER.value
-        states[in_water] = PhotonState.IN_WATER.value
-        states[water_to_floor] = PhotonState.HITTING_SEAFLOOR.value
-        states[water_to_air] = PhotonState.EXITING_WATER.value
+        states[air_to_water] = PhotonPositionState.ENTERING_WATER.value
+        states[in_water] = PhotonPositionState.IN_WATER.value
+        states[water_to_floor] = PhotonPositionState.HITTING_SEAFLOOR.value
+        states[water_to_air] = PhotonPositionState.EXITING_WATER.value
 
         return states
 
@@ -232,11 +232,11 @@ class Simulation:
         y_next = next_positions[:, 1]
         states = self.evaluate_state(y_current, y_next)
 
-        air_idx = np.nonzero(states == PhotonState.IN_AIR.value)[0]
-        enter_idx = np.nonzero(states == PhotonState.ENTERING_WATER.value)[0]
-        water_idx = np.nonzero(states == PhotonState.IN_WATER.value)[0]
-        hit_floor_idx = np.nonzero(states == PhotonState.HITTING_SEAFLOOR.value)[0]
-        exit_idx = np.nonzero(states == PhotonState.EXITING_WATER.value)[0]
+        air_idx = np.nonzero(states == PhotonPositionState.IN_AIR.value)[0]
+        enter_idx = np.nonzero(states == PhotonPositionState.ENTERING_WATER.value)[0]
+        water_idx = np.nonzero(states == PhotonPositionState.IN_WATER.value)[0]
+        hit_floor_idx = np.nonzero(states == PhotonPositionState.HITTING_SEAFLOOR.value)[0]
+        exit_idx = np.nonzero(states == PhotonPositionState.EXITING_WATER.value)[0]
 
         # Process each state
         positions[air_idx] = next_positions[air_idx]
@@ -416,10 +416,11 @@ class Simulation:
         T = 1.0 - R # fraction transmitted
 
         # Store incident photon for backward gathering (before splitting energy)
-        if forward:
-            self.store_photons(intersection, directions, energies, f + self.current_step + time_deltas, PhotonType.SURFACE_REFLECTION)
-        else:
-            self.sample_photons(intersection, directions, energies, f + self.current_step, PhotonType.SURFACE_REFLECTION)
+        if True:
+            if forward:
+                self.store_photons(intersection, directions, energies, f + self.current_step + time_deltas, PhotonType.SURFACE_REFLECTION)
+            else:
+                self.sample_photons(intersection, directions, energies, f + self.current_step, PhotonType.SURFACE_REFLECTION)
 
         # Total internal reflection mask
         k = 1.0 - eta**2 * (1.0 - cos_i**2)
@@ -573,7 +574,7 @@ if __name__ == "__main__":
     start = time.time()
     # simulation.photon_np_array = np.concatenate(simulation.photon_batches)
     photon_maps_data = build_photon_map_data(simulation.photon_storage)
-    print_photon_map_stats(photon_maps_data)
+    print(photon_map_stats(photon_maps_data))
     # print(f"{len(simulation.photon_np_array)} entries in photon list, {(sys.getsizeof(simulation.photon_np_array) / 1024):.2f} KiB")
     for photon_type, data in photon_maps_data.items():
         simulation.photon_maps[photon_type] = PhotonMapIndex(data)
