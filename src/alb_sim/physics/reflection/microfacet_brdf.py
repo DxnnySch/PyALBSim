@@ -48,11 +48,15 @@ def smith_ggx_G1(n_dot_v: Array | float, alpha: float):
     G1 : Masking or shadowing term
     """
     # substitute lambda_ggx function into G1, substitute a into G1
-    alpha2 = alpha * alpha
-    n_dot_v2 = n_dot_v * n_dot_v
-    nom = alpha2 * (1 - n_dot_v2) + (n_dot_v2)
-    denom = n_dot_v2
-    return 2 / (1 + np.sqrt(nom / denom))
+    # alpha2 = alpha * alpha
+    # n_dot_v2 = n_dot_v * n_dot_v
+    # nom = alpha2 * (1 - n_dot_v2) + (n_dot_v2)
+    # denom = n_dot_v2
+    # return 2 / (1 + np.sqrt(nom / denom))
+
+    a2 = alpha * alpha
+    denom = n_dot_v + np.sqrt(a2 + (1 - a2) * n_dot_v**2)
+    return 2.0 * n_dot_v / denom
 
 
 def smith_ggx_G(n_dot_wi: Array, n_dot_wo: float, alpha: float):
@@ -73,7 +77,8 @@ def smith_ggx_G(n_dot_wi: Array, n_dot_wo: float, alpha: float):
     G1_i = smith_ggx_G1(n_dot_wi, alpha)
     G1_o = smith_ggx_G1(n_dot_wo, alpha)
 
-    return 1 / (1 + G1_i + G1_o)
+    # return 1 / (1 + G1_i + G1_o)
+    return G1_i * G1_o
 
 
 def microfacet_reflected_energy(
@@ -114,7 +119,7 @@ def microfacet_reflected_energy(
         dot_batch_batch(incident_direction, half_vector), 0.0, 1.0
     )
     n_dot_h = np.clip(dot_batch_single(half_vector, normal), 0.0, 1.0)
-    
+
     valid = (n_dot_wi > 0) & (n_dot_wo > 0)
 
     # Terms
@@ -129,6 +134,7 @@ def microfacet_reflected_energy(
     out[valid] = spec[valid]
     return out
 
+
 def microfacet_transmitted_energy(
     incident_direction: Vector3Array,
     outgoing_direction: Vector3Array,
@@ -142,7 +148,7 @@ def microfacet_transmitted_energy(
     Microfacet BTDF (GGX), Walter et al. style
     """
 
-    wi = normalize_batch(incident_direction)
+    wi = normalize_batch(-incident_direction)
     wo = normalize_vector(outgoing_direction)
     n = normalize_vector(normal)
 
@@ -172,11 +178,9 @@ def microfacet_transmitted_energy(
     Ft = 1.0 - F
 
     # --- Jacobian term ---
-    denom = (eta_i * wi_dot_h + eta_o * wo_dot_h)
+    denom = eta_i * wi_dot_h + eta_o * wo_dot_h
     factor = (eta_o * eta_o * wo_dot_h) / (denom * denom + EPSILON)
 
-    btdf = Ft * D * G * factor / (
-        abs(n_dot_wi) * abs(n_dot_wo) + EPSILON
-    )
+    btdf = Ft * D * G * factor / (abs(n_dot_wi) * abs(n_dot_wo) + EPSILON)
 
     return np.where(valid, btdf, 0.0)

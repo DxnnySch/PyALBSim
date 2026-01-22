@@ -1,5 +1,7 @@
 import secrets
 import numpy as np
+from alb_sim.config.sea_floor import SeaFloorConfig
+from alb_sim.config.water import TurbidityLayerConfig, WaterConfig
 from alb_sim.core.simulation import Simulation
 from alb_sim.execution.linear import linear_backward, linear_forward, run_linear
 from alb_sim.config.simulation import SimulationConfig
@@ -12,13 +14,25 @@ from alb_sim.photon_mapping.print_photon_map_stats import photon_map_stats
 rng = np.random.default_rng(secrets.randbits(128))
 
 # Configuration
-simulation_config = SimulationConfig()
+simulation_config = SimulationConfig(
+    water=WaterConfig(
+        layers=(
+            TurbidityLayerConfig(
+                height=7, absorption_coefficient=0.01, scattering_coefficient=3.5
+            ),
+        )
+    ),
+    sea_floor=SeaFloorConfig(albedo=0.1),
+)
+# run_config = RunConfig(batches_forward=5, photons_per_batch_backward=10_000, batches_backward=1)
 run_config = RunConfig()
 
 simulation = Simulation(simulation_config, rng)
 
 # forwards
-linear_forward(simulation, run_config.photons_per_batch_forward, run_config.batches_forward)
+linear_forward(
+    simulation, run_config.photons_per_batch_forward, run_config.batches_forward
+)
 
 # combine batches
 photon_maps_data = build_photon_map_data(simulation.photon_storage)
@@ -26,15 +40,18 @@ print("\n" + photon_map_stats(photon_maps_data))
 for photon_type, data in photon_maps_data.items():
     simulation.photon_maps[photon_type] = PhotonMapIndex(data)
 
-linear_backward(simulation, run_config.photons_per_batch_backward, run_config.batches_backward)
+linear_backward(
+    simulation, run_config.photons_per_batch_backward, run_config.batches_backward
+)
 
 data = simulation.return_waveform
 
 import numpy as np
 import matplotlib.pyplot as plt
+
 x = np.arange(len(next(iter(data.values()))))
 labels = [pt.name for pt in data.keys()]
-values = np.vstack(list(data.values()))  
+values = np.vstack(list(data.values()))
 plt.figure()
 plt.stackplot(x, values, labels=labels)
 plt.legend(loc="upper left")

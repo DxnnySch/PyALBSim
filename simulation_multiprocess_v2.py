@@ -40,7 +40,7 @@ def backward_worker_init(shared_photon_maps_data):
     """
     global photon_maps
     photon_maps = {} # dict[PhotonType, PhotonMapIndex]
-    for photon_type, data in photon_maps_data.items():
+    for photon_type, data in shared_photon_maps_data.items():
         photon_maps[photon_type] = PhotonMapIndex(data)
     # print(f"Worker PID {mp.current_process().pid}: KDTree built")
 

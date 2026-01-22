@@ -89,7 +89,9 @@ class TurbidityLayerModel:
             - 4.18
             * particle_scattering_coefficient
             * self.fournier_forand_model.backscatter_fraction
-            * (1 - 0.52 * math.exp(-10.8 * self._config.scattering_coefficient)) # TODO: here is scattering coefficient instead of absorption coefficient? I think that is wrong 
+            * (
+                1 - 0.52 * math.exp(-10.8 * self._config.scattering_coefficient)
+            )  # TODO: here is scattering coefficient instead of absorption coefficient? I think that is wrong
         ) * math.exp(
             -0.85
             * laser_spot_diameter_surface

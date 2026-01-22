@@ -1,8 +1,7 @@
-from time import perf_counter
-import numpy as np
 import logging
+from time import perf_counter
 
-logger = logging.getLogger(__name__)
+import numpy as np
 
 from alb_sim.config.simulation import SimulationConfig
 from alb_sim.math.vector_math import dot_batch_single, length_batch
@@ -15,6 +14,8 @@ from alb_sim.physics.reflection.lambertian import heuristic_sample_batch
 from alb_sim.utils.photon_position_state import PhotonPositionState
 from alb_sim.utils.photon_wrapper import PhotonWrapper
 from alb_sim.utils.types import Array, IntArray, Vector3Array
+
+logger = logging.getLogger(__name__)
 
 
 class Simulation:
@@ -123,13 +124,20 @@ class Simulation:
                 )
 
                 kernel_size = np.pi * dist[-1] ** 2
-            elif photon_type == PhotonType.SURFACE_TRANSMISSION:
+            elif photon_type == PhotonType.SURFACE_TRANSMISSION_UP:
                 energy_multiplier = self.model.sea_surface.transmitted_energy(
-                    -photon_direction,
-                    -sensor_direction,
+                    -photon_direction, -sensor_direction, np.array([0, 1, 0])
                 )
 
                 kernel_size = np.pi * dist[-1] ** 2
+            # elif photon_type == PhotonType.SURFACE_TRANSMISSION_DOWN:
+            #     energy_multiplier = self.model.sea_surface.transmitted_energy(
+            #         -photon_direction,
+            #         -sensor_direction,
+            #         np.array([0, -1, 0])
+            #     )
+
+            #     kernel_size = np.pi * dist[-1] ** 2
 
             kernel_norm = 1.0 / kernel_size
 
@@ -223,7 +231,9 @@ class Simulation:
         # Water - Air
         if exit_idx.size > 0:
             exit_subset = wrapper.subset(exit_idx)
-            exit_subset = self.handle_exit(exit_subset, next_positions[exit_idx], forward=forward)
+            exit_subset = self.handle_exit(
+                exit_subset, next_positions[exit_idx], forward=forward
+            )
             wrapper.positions[exit_idx] = exit_subset.positions
             wrapper.directions[exit_idx] = exit_subset.directions
             wrapper.energies[exit_idx] = exit_subset.energies
@@ -342,9 +352,10 @@ class Simulation:
         reflection_subset.time_deltas += self.current_step
         if forward:
             self.store_photons(reflection_subset, PhotonType.SURFACE_REFLECTION)
+            # self.store_photons(reflection_subset, PhotonType.SURFACE_TRANSMISSION_DOWN)
         else:
             self.sample_photons(reflection_subset, PhotonType.SURFACE_REFLECTION)
-            # self.sample_photons(reflection_subset, PhotonType.SURFACE_TRANSMISSION)
+            self.sample_photons(reflection_subset, PhotonType.SURFACE_TRANSMISSION_UP)
 
         # Refraction direction
         subset.directions, _ = self.model.sea_surface.calculate_refraction_direction(
@@ -370,11 +381,7 @@ class Simulation:
         return subset
 
     def handle_exit(
-        self,
-        subset: PhotonWrapper,
-        next_positions: Vector3Array,
-        *,
-        forward: bool
+        self, subset: PhotonWrapper, next_positions: Vector3Array, *, forward: bool
     ) -> PhotonWrapper:
         """
         Handle refraction or reflection at a flat water surface.
@@ -417,10 +424,11 @@ class Simulation:
         # transmission_subset.positions = intersection_points
         transmission_subset.time_deltas += self.current_step
         if forward:
-            self.store_photons(transmission_subset, PhotonType.SURFACE_REFLECTION)
+            self.store_photons(transmission_subset, PhotonType.SURFACE_TRANSMISSION_UP)
+            # self.store_photons(transmission_subset, PhotonType.SURFACE_REFLECTION)
         else:
-            self.sample_photons(transmission_subset, PhotonType.SURFACE_REFLECTION)
-            # self.sample_photons(transmission_subset, PhotonType.SURFACE_TRANSMISSION)
+            self.sample_photons(transmission_subset, PhotonType.SURFACE_TRANSMISSION_UP)
+        #     self.sample_photons(transmission_subset, PhotonType.SURFACE_TRANSMISSION)
 
         # Refraction and reflection direction
         refracted_directions, total_internal_reflections_mask = (

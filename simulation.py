@@ -530,8 +530,8 @@ if __name__ == "__main__":
     rng = np.random.default_rng(secrets.randbits(128))
     options = {
         "flying_height": 135,
-        "water_depth": 3,
-        "sample_rate": 2_000_000_000,
+        "water_depth": 7,
+        "sample_rate": 5_000_000_000,
         "sample_multiplier": 10,
         # "absorption_coefficient": 0.114,
         # "total_scattering_coefficient": 0.037
@@ -544,7 +544,7 @@ if __name__ == "__main__":
     # print(f"distance laser - seafloor is {round(np.dot(np.array([0, -simulation.camera_settings.distance_seafloor_flying_height, 0]), np.array([0, 1, 0]))/np.dot(np_vec.normalize_vector(np.array(simulation.laser_settings.laser_direction)), np.array([0, 1, 0])), 2)} m")
     start = time.time()
     photons_per_batch = 10_000
-    batches = 10
+    batches = 5
     visualize_paths = 0
     
     # ------------------------------
@@ -590,8 +590,8 @@ if __name__ == "__main__":
     # ------------------------------
 
     start = time.time()
-    photons_per_batch = 5_000
-    batches = 5
+    photons_per_batch = 10_000
+    batches = 1
 
     profiler = cProfile.Profile()
     profiler.enable()
@@ -609,7 +609,21 @@ if __name__ == "__main__":
     stats = pstats.Stats(profiler).sort_stats('tottime')
     stats.print_stats(30)  # Top 30 functions
 
-    plot_2d_better(simulation.return_waveform, title="waveform", ylabel="Intensity", xlabel="Sample", xlim=(1860,1930), params=options, show=True)
+    plot_2d_better(simulation.return_waveform, title="waveform", ylabel="Intensity", xlabel="Sample", xlim=(4650,4800), params=options, show=True)
+    
+
+    data = simulation.return_waveform_by_type
+    import matplotlib.pyplot as plt
+    x = np.arange(len(next(iter(data.values()))))
+    labels = [pt.name for pt in data.keys()]
+    values = np.vstack(list(data.values()))  
+    plt.figure()
+    plt.stackplot(x, values, labels=labels)
+    plt.legend(loc="upper left")
+    plt.xlabel("Step / Distance")
+    plt.ylabel("Photon contribution")
+    plt.title("Photon contributions (stacked)")
+    plt.show()
     # photons_bottom_reflections = np.array(simulation.photons_found_bottom_reflection)
     # print(f"{np.count_nonzero(photons_bottom_reflections == 0)} sensor photons found no bottom reflection photons, {(np.count_nonzero(photons_bottom_reflections == 0) / len(photons_bottom_reflections) * 100):.3f} %")
     # photons_scatters = np.array(simulation.photons_found_scatter)

@@ -1,4 +1,5 @@
-from dataclasses import field, dataclass
+import os
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -24,4 +25,11 @@ class RunConfig:
     batches_backward: int = field(
         default=5,
         metadata={"unit": "", "description": "Number of backward passes"},
+    )
+    processes: int = field(
+        default_factory=lambda: os.process_cpu_count() - 1,
+        metadata={
+            "unit": "",
+            "description": "Number of processes to use in multiprocessing, ignored in linear execution",
+        },
     )

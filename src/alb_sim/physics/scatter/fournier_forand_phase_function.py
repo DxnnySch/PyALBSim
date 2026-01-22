@@ -1,6 +1,5 @@
 import numpy as np
 
-from alb_sim.physics.constants import EPSILON
 from alb_sim.utils.types import Array
 
 SCATTER_DIVISIONS = 18000
@@ -39,7 +38,7 @@ def calculate_backscatter_fraction(junge_slope: float, refractive_index_ratio: f
     v = (3 - junge_slope) / 2
     delta_90 = (4 / (3 * (refractive_index_ratio - 1) ** 2)) * np.sin(np.pi / 4) ** 2
 
-    return 1 - (
-        (1 - delta_90 ** (v + 1) - 0.5 * (1 - delta_90**v))
-        / ((1 - delta_90) * delta_90**v)
-    )
+    num = 1 - delta_90 ** (v + 1) - 0.5 * (1 - delta_90**v)
+    denom = (1 - delta_90) * delta_90**v
+
+    return 1 - (num / denom)

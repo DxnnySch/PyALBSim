@@ -1,4 +1,5 @@
 import numpy as np
+
 from alb_sim.math.vector_math import normalize_batch, random_unit_vector_batch
 from alb_sim.utils.types import Vector3, Vector3Array
 

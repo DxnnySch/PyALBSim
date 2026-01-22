@@ -26,7 +26,7 @@ class TurbidityLayerConfig:
         metadata={"unit": "m", "description": "Height of the turbidity layer"},
     )
     scattering_coefficient: float = field(
-        default=2.5,#1.21,
+        default=2.5,  # 1.21,
         metadata={
             "unit": "1/m",
             "description": "Total scattering coefficient",

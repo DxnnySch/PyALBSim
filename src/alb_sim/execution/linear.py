@@ -1,16 +1,16 @@
-from time import perf_counter
-import numpy as np
 import secrets
+from time import perf_counter
 
+import numpy as np
+
+from alb_sim.config.run import RunConfig
+from alb_sim.config.simulation import SimulationConfig
+from alb_sim.core.simulation import Simulation
 from alb_sim.photon_mapping.build_photon_map_data import build_photon_map_data
 from alb_sim.photon_mapping.photon_map_index import PhotonMapIndex
 from alb_sim.photon_mapping.photon_type import PhotonType
 from alb_sim.photon_mapping.print_photon_map_stats import photon_map_stats
 from alb_sim.utils.types import Array
-
-from alb_sim.config.run import RunConfig
-from alb_sim.config.simulation import SimulationConfig
-from alb_sim.core.simulation import Simulation
 
 
 def linear_forward(simulation: Simulation, photons_per_batch: int, batches: int):
@@ -22,13 +22,12 @@ def linear_forward(simulation: Simulation, photons_per_batch: int, batches: int)
         simulation.simulate_batch(photons_per_batch, forward=True)
         since_start = perf_counter() - start_time
         since_round = perf_counter() - round_start
+        eta = (since_start / (i + 1)) * (batches - (i + 1))
         print(
             f"forward batch {i+1}/{batches} in {since_round:.2f} s = {(since_round / 60):.2f} min",
             end=", ",
         )
-        print(
-            f"{(since_start / 60):.2f} min since start, ETA: {(((since_start / 60) / (i+1)) * (batches - (i + 1))):.2f} min"
-        )
+        print(f"{(since_start / 60):.2f} min since start, ETA: {(eta / 60):.2f}min")
     print("Finished forwards pass")
 
 
@@ -41,13 +40,12 @@ def linear_backward(simulation: Simulation, photons_per_batch: int, batches: int
         simulation.simulate_batch(photons_per_batch, forward=False)
         since_start = perf_counter() - start_time
         since_round = perf_counter() - round_start
+        eta = (since_start / (i + 1)) * (batches - (i + 1))
         print(
             f"backward batch {i+1}/{batches} in {since_round:.2f} s = {(since_round / 60):.2f} min",
             end=", ",
         )
-        print(
-            f"{(since_start / 60):.2f} min since start, ETA: {(((since_start / 60) / (i+1)) * (batches - (i + 1))):.2f} min"
-        )
+        print(f"{(since_start / 60):.2f} min since start, ETA: {(eta / 60):.2f} min")
     print("Finished backwards pass")
 
 
@@ -66,7 +64,7 @@ def run_linear(
     )
 
     photon_maps_data = build_photon_map_data(simulation.photon_storage)
-    print("\n" + photon_map_stats(photon_maps_data))
+    print("\n" + photon_map_stats(photon_maps_data) + "\n")
     for photon_type, data in photon_maps_data.items():
         simulation.photon_maps[photon_type] = PhotonMapIndex(data)
 

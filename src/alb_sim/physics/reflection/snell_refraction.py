@@ -1,7 +1,7 @@
 import numpy as np
 
 from alb_sim.math.vector_math import dot_batch_single, normalize_batch
-from alb_sim.utils.types import Array, BoolArray, Vector3, Vector3Array
+from alb_sim.utils.types import BoolArray, Vector3, Vector3Array
 
 
 def calculate_refraction_direction(
