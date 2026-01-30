@@ -5,7 +5,6 @@ import time
 import secrets
 import math
 import sys
-from scipy.spatial import KDTree
 from typing import List, Tuple
 from numpy.typing import NDArray
 from line_profiler import profile

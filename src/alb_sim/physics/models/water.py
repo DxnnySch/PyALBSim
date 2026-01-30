@@ -59,13 +59,13 @@ class TurbidityLayerModel:
             self._config.scattering_coefficient
             - seawater_molecular_scattering_coefficient
         )
-        print("particle scattering", particle_scattering_coefficient)
+        # print("particle scattering", particle_scattering_coefficient)
         laser_spot_diameter_surface = (
             2
             * self._scene_config.flying_height
             * math.tan(self._laser_config.divergence_angle / 2)
         )
-        print("laser spot diameter", laser_spot_diameter_surface)
+        # print("laser spot diameter", laser_spot_diameter_surface)
 
         # Diffuse attenuation coefficient (Churnside, 2014)
         # See eq. 7, "Review of profiling oceanographic lidar", Churnside 12/2013
@@ -78,7 +78,7 @@ class TurbidityLayerModel:
                 1 - 0.52 * math.exp(-10.8 * self._config.absorption_coefficient)
             )  # TODO: Should be +0.52?
         )
-        print("kd", kd)
+        # print("kd", kd)
 
         # For ALB systems if IFOV is greater than 10 mrad, appropriate attenuation coefficient is the diffuse attenuation coefficient K_d
         # If the IFOV is narrower than 10 mrad, the appropriate attenuation coefficient will be the beam attenuation coefficient c

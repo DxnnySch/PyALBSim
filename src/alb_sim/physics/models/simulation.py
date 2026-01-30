@@ -32,7 +32,7 @@ class SimulationModel:
 
     def _calculate_steps(self) -> int:
         distance = self.seafloor_y / self.laser.direction[1]
-        print(distance)
+        # print(distance)
         return int(1.5 * (distance * round(self.sample_rate)) / LIGHT_SPEED_AIR)
 
     @property

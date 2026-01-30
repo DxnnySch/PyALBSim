@@ -3,7 +3,6 @@ import multiprocessing as mp
 import os
 import secrets, time, sys
 import numpy as np
-from scipy.spatial import KDTree
 
 from simulation import Simulation
 from alb_sim.photon_mapping.build_photon_map_data import build_photon_map_data

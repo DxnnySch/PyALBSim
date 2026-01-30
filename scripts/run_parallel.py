@@ -16,8 +16,8 @@ simulation_config = SimulationConfig(
     sea_floor=SeaFloorConfig(albedo=0.1),
 )
 run_config = RunConfig(
-    batches_forward=os.process_cpu_count() - 1,
-    batches_backward=os.process_cpu_count() - 1,
+    batches_forward=(os.process_cpu_count() - 1) * 3,
+    batches_backward=(os.process_cpu_count() - 1) * 5,
 )
 
 waveform = run_parallel(simulation_config, run_config)
