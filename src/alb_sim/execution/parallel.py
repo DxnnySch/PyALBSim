@@ -1,9 +1,10 @@
 import math
-import multiprocessing as mp
 import secrets
 from collections import defaultdict
 from time import perf_counter
+from typing import Union
 
+import multiprocess as mp
 import numpy as np
 
 from alb_sim.config.run import RunConfig
@@ -31,7 +32,7 @@ def merge_results(results: list[dict]):
 # ==============================
 # Forward worker
 # ==============================
-def forward_worker(args: tuple[SimulationConfig, RunConfig, int | None]):
+def forward_worker(args: tuple[SimulationConfig, RunConfig, Union[int, None]]):
     start = perf_counter()
     config, run_config, seed = args
     if seed is None:
@@ -61,7 +62,7 @@ def backward_worker_init(shared_photon_maps_data: dict[PhotonType, PhotonMapData
 # ==============================
 # Backward worker batch
 # ==============================
-def backward_worker_batch(args: tuple[SimulationConfig, RunConfig, int | None]):
+def backward_worker_batch(args: tuple[SimulationConfig, RunConfig, Union[int, None]]):
     start = perf_counter()
     config, run_config, seed = args
     if seed is None:
@@ -88,7 +89,9 @@ def run_with_progress(pool, worker, args_list, label, num_batches, num_processes
         results.append(res)
         times.append(task_time)
         since_start = perf_counter() - start_time
-        eta = np.mean(times) * (math.ceil(num_batches / num_processes) - math.ceil(i / num_processes))
+        eta = np.mean(times) * (
+            math.ceil(num_batches / num_processes) - math.ceil(i / num_processes)
+        )
         print(
             f"{label} batch {i}/{num_batches} in {task_time:.2f} s = {(task_time / 60):.2f} min",
             end=", ",
@@ -105,7 +108,7 @@ def run_with_progress(pool, worker, args_list, label, num_batches, num_processes
 def run_parallel(
     simulation_config: SimulationConfig,
     run_config: RunConfig,
-    seed: int | None = None,
+    seed: Union[int, None] = None,
 ) -> dict[PhotonType, Array]:
 
     # ------------------------------
@@ -118,7 +121,12 @@ def run_parallel(
     ]
     with mp.Pool(processes=run_config.processes) as pool:
         forward_results = run_with_progress(
-            pool, forward_worker, forward_args, "forward", run_config.batches_forward, run_config.processes
+            pool,
+            forward_worker,
+            forward_args,
+            "forward",
+            run_config.batches_forward,
+            run_config.processes,
         )
 
     # ------------------------------
@@ -156,7 +164,7 @@ def run_parallel(
             backward_args,
             "backward",
             run_config.batches_backward,
-            run_config.processes
+            run_config.processes,
         )
 
     waveform = merge_results(backward_results)

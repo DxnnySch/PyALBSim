@@ -80,11 +80,7 @@ class Simulation:
 
     def sample_photons(self, wrapper: PhotonWrapper, photon_type: PhotonType) -> None:
         for sensor_position, sensor_direction, sensor_energy, sensor_time_step in zip(
-            wrapper.positions,
-            wrapper.directions,
-            wrapper.energies,
-            wrapper.time_deltas,
-            strict=True,
+            wrapper.positions, wrapper.directions, wrapper.energies, wrapper.time_deltas
         ):
             dist, idx = self.photon_maps[photon_type].tree.query(
                 sensor_position, k=self.model.photon_mapping_k

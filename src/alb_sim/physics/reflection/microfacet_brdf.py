@@ -1,3 +1,5 @@
+from typing import Union
+
 import numpy as np
 
 from alb_sim.math.vector_math import (
@@ -34,7 +36,7 @@ def ggx_distribution(n_dot_h: Vector3Array, alpha: float) -> Array:
     return alpha2 / (denom + EPSILON)
 
 
-def smith_ggx_G1(n_dot_v: Array | float, alpha: float):
+def smith_ggx_G1(n_dot_v: Union[Array, float], alpha: float):
     """
     Smith G1 term for GGX distribution.
 

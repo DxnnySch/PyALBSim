@@ -1,4 +1,4 @@
-from typing import overload
+from typing import Union, overload
 
 from alb_sim.utils.types import Array
 
@@ -11,7 +11,9 @@ def fresnel_schlick(cos_theta: Array, base_reflectance: float) -> Array: ...
 def fresnel_schlick(cos_theta: float, base_reflectance: float) -> float: ...
 
 
-def fresnel_schlick(cos_theta: Array | float, base_reflectance: float) -> Array | float:
+def fresnel_schlick(
+    cos_theta: Union[Array, float], base_reflectance: float
+) -> Union[Array, float]:
     """
     Schlick Fresnel approximation.
 

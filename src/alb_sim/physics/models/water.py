@@ -1,4 +1,5 @@
 import math
+from typing import Union
 
 import numpy as np
 
@@ -126,7 +127,7 @@ class WaterModel:
         self.layer_height_cumsum = np.cumsum([layer.height for layer in self.layers])
         self.depth = self.layer_height_cumsum[-1]
 
-    def layer_index(self, depths: Array | float) -> IntArray | int:
+    def layer_index(self, depths: Union[Array, float]) -> Union[IntArray, int]:
         return np.searchsorted(self.layer_height_cumsum, depths, side="right").astype(
             np.int32
         )
