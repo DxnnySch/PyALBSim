@@ -27,7 +27,7 @@ class RunConfig:
         metadata={"unit": "", "description": "Number of backward passes"},
     )
     processes: int = field(
-        default_factory=lambda: os.process_cpu_count() - 1,
+        default=8,
         metadata={
             "unit": "",
             "description": "Number of processes to use in multiprocessing, ignored in linear execution",
