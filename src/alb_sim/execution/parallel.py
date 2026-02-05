@@ -1,3 +1,4 @@
+from datetime import datetime
 import math
 import secrets
 from collections import defaultdict
@@ -93,7 +94,7 @@ def run_with_progress(pool, worker, args_list, label, num_batches, num_processes
             math.ceil(num_batches / num_processes) - math.ceil(i / num_processes)
         )
         print(
-            f"{label} batch {i}/{num_batches} in {task_time:.2f} s = {(task_time / 60):.2f} min",
+            f"{label} batch {i}/{num_batches} in {task_time:.2f} s = {(task_time / 60):.2f} min ({datetime.now().strftime('%H:%M:%S')})",
             end=", ",
         )
         print(f"{(since_start / 60):.2f} min since start, ETA: {(eta / 60):.2f} min")
