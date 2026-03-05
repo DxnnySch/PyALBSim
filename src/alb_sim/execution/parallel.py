@@ -1,7 +1,7 @@
-from datetime import datetime
 import math
 import secrets
 from collections import defaultdict
+from datetime import datetime
 from time import perf_counter
 from typing import Union
 
@@ -74,7 +74,7 @@ def backward_worker_batch(args: tuple[SimulationConfig, RunConfig, Union[int, No
     # Attach global photon map + tree
     sim.photon_maps = photon_maps
 
-    sim.simulate_batch(run_config.photons_per_batch_forward, forward=False)
+    sim.simulate_batch(run_config.photons_per_batch_backward, forward=False)
     duration = perf_counter() - start
     return sim.return_waveform, duration
 

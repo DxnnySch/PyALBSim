@@ -109,7 +109,7 @@ class TurbidityLayerModel:
         ) + 4.18 * particle_scattering_coefficient * self.fournier_forand_model.backscatter_fraction * (  # TODO: Shouldn't be here?
             1
             - 0.52
-            * math.exp(-10.8 * self._eval(self._config.absorption_coefficient, z_local))
+            * np.exp(-10.8 * self._eval(self._config.absorption_coefficient, z_local))
         )  # TODO: Should be +0.52?
 
         # For ALB systems if IFOV is greater than 10 mrad, appropriate attenuation coefficient is the diffuse attenuation coefficient K_d
@@ -124,11 +124,11 @@ class TurbidityLayerModel:
             * (
                 1
                 - 0.52
-                * math.exp(
+                * np.exp(
                     -10.8 * self._eval(self._config.scattering_coefficient, z_local)
                 )
             )  # TODO: here is scattering coefficient instead of absorption coefficient? I think that is wrong
-        ) * math.exp(
+        ) * np.exp(
             -0.85
             * laser_spot_diameter_surface
             * (
@@ -255,7 +255,7 @@ class WaterModel:
             mask = idx == layer_idx
             if np.any(mask):
                 lidar_attenuation_coefficients[mask] = (
-                    layer.lidar_attenuation_coefficient_at(z_local)
+                    layer.lidar_attenuation_coefficient_at(z_local[mask])
                 )
         return lidar_attenuation_coefficients
 
@@ -268,7 +268,7 @@ class WaterModel:
             mask = idx == layer_idx
             if np.any(mask):
                 single_scattering_albedos[mask] = layer.single_scattering_albedo_at(
-                    z_local
+                    z_local[mask]
                 )
         return single_scattering_albedos
 

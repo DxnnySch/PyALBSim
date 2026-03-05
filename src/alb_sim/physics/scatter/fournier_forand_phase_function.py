@@ -9,7 +9,7 @@ SCATTER_DIVISIONS = 18000
 def calculate_phase_function(
     junge_slope: float, refractive_index_ratio: float
 ) -> tuple[Array, Array, Array]:
-    theta = np.linspace(1e-6, np.pi, SCATTER_DIVISIONS, dtype=np.float32)
+    theta = np.linspace(1e-6, np.pi, SCATTER_DIVISIONS, dtype=np.float64)
 
     v = (3 - junge_slope) / 2
     delta = (4 / (3 * (refractive_index_ratio - 1) ** 2)) * np.sin(theta / 2) ** 2
@@ -32,6 +32,28 @@ def calculate_phase_function(
 
     return theta, ff, cdf
 
+def calculate_phase_function_matlab(junge_slope: float, refractive_index_ratio: float) -> tuple[Array, Array, Array]:
+    theta = np.linspace(1e-6, np.pi, SCATTER_DIVISIONS, dtype=np.float64)
+
+    v = (3 - junge_slope) / 2
+    delta = (4 / (3 * (refractive_index_ratio - 1) ** 2)) * np.sin(theta / 2) ** 2
+    delta_180 = (4 / (3 * (refractive_index_ratio - 1) ** 2)) * np.sin(np.pi / 2) ** 2
+
+    term1 = 1 / ((1 - delta) * delta**v)
+    term2 = (
+        (1 - delta**(v + 1))
+        - (1 - delta**v)
+        * np.sin(theta / 2) ** (2)
+    )
+    term3 = ((1/8) * (1 - delta_180**v)) / ((delta_180 - 1) * delta_180**v)
+    term4 = np.cos(theta) * np.sin(theta)**2
+    ff = term1 * term2 + term3 * term4
+
+    # calculate normalized cumulative distribution function
+    cdf = np.cumsum(ff * np.sin(theta))
+    cdf /= cdf[-1]
+
+    return theta, ff, cdf
 
 # https://www.oceanopticsbook.info/view/scattering/the-fournier-forand-phase-function
 def calculate_backscatter_fraction(junge_slope: float, refractive_index_ratio: float):
