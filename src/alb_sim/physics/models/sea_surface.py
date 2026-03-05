@@ -18,7 +18,7 @@ class SeaSurfaceModel:
         self.base_reflectance = self._calculate_base_reflectance()
 
     def _calculate_base_reflectance(self) -> float:
-        return (
+        return ( # TODO: might fail if refractive Index is Scalar
             (1 - self._water_config.layers[0].refractive_index)
             / (1 + self._water_config.layers[0].refractive_index)
         ) ** 2
