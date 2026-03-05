@@ -41,7 +41,7 @@ class TurbidityLayerModel:
         self.fournier_forand_model = FournierForandModel(
             self._config.fournier_forand_parameters
         )
-        
+
         self._build_lidar_attenuation_lut()
 
         # self.light_speed = self._calculate_light_speed()
@@ -60,13 +60,13 @@ class TurbidityLayerModel:
                 self._config.refractive_index,
             )
         )
-    
+
     def _build_lidar_attenuation_lut(self):
         if self._is_constant_layer():
             self._constant_alpha = self._calculate_lidar_attenuation_coefficient(0.0)
             self.lidar_attenuation_coefficient_at = lambda z: self._constant_alpha
             return
-        
+
         self._z_lut = np.linspace(
             0.0,
             self._config.height,
@@ -84,8 +84,10 @@ class TurbidityLayerModel:
         if isinstance(value, float):
             return value
         return value.at(z_local / self._config.height)
-    
-    def _calculate_lidar_attenuation_coefficient(self, z_local: Union[Array, float]) -> Union[Array, float]:
+
+    def _calculate_lidar_attenuation_coefficient(
+        self, z_local: Union[Array, float]
+    ) -> Union[Array, float]:
         seawater_molecular_scattering_coefficient: Union[Array, float] = (
             (1 + 0.008027 * self._eval(self._config.salinity, z_local))
             * 0.00012

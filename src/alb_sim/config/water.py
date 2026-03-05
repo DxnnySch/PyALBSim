@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from typing import Union
 
 import numpy as np
 
@@ -61,17 +62,11 @@ class TurbidityLayerConfig:
             "description": "Fournier-Forand phase function parameters",
         },
     )
-    sublayer_dz: float | None = field(
-        default=0.05,
-        metadata={
-            "unit": "", "description": "Height of the sublayers"
-        }
+    sublayer_dz: Union[float, None] = field(
+        default=0.05, metadata={"unit": "", "description": "Height of the sublayers"}
     )
-    num_sublayers: int | None = field(
-        default=None,
-        metadata={
-            "unit": "", "description": "Number of sublayers"
-        }
+    num_sublayers: Union[int, None] = field(
+        default=None, metadata={"unit": "", "description": "Number of sublayers"}
     )
 
     def __post_init__(self):
@@ -101,16 +96,15 @@ class TurbidityLayerConfig:
             "refractive_index",
             normalize_number_or_scalar(self.refractive_index),
         )
-        
+
         if self.num_sublayers is None:
             if self.sublayer_dz is None:
                 raise ValueError("Either sublayer_dz or num_sublayers must be provided")
             object.__setattr__(
                 self,
                 "num_sublayers",
-                max(2, int(np.ceil(self.height / self.sublayer_dz)))
+                max(2, int(np.ceil(self.height / self.sublayer_dz))),
             )
-
 
 
 @dataclass(frozen=True)

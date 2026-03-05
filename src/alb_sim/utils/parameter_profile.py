@@ -18,6 +18,7 @@ class ScalarParameter(Protocol):
 
 NumberOrScalar = Union[float, ScalarParameter]
 
+
 def normalize_number_or_scalar(value: NumberOrScalar) -> NumberOrScalar:
     if isinstance(value, bool):
         # defensive: bool is a subclass of int
@@ -27,6 +28,7 @@ def normalize_number_or_scalar(value: NumberOrScalar) -> NumberOrScalar:
         return float(value)
 
     return value
+
 
 @dataclass(frozen=True)
 class LinearParameter:
@@ -39,11 +41,12 @@ class LinearParameter:
         out = self.start + t * (self.end - self.start)
         return out.item() if scalar else out
 
+
 @dataclass(frozen=True)
 class ExponentialParameter:
     start: float
     end: float
-    
+
     def __post_init__(self):
         if self.start <= 0 or self.end <= 0:
             raise ValueError("ExponentialProfile requires positive values")

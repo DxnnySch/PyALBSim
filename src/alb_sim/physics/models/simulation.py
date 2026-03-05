@@ -2,6 +2,7 @@ import numpy as np
 
 from alb_sim.config.simulation import SimulationConfig
 from alb_sim.math.direction_cone import sample_directions_in_cone
+from alb_sim.math.disk_sampling import sample_disk_points
 from alb_sim.physics.constants import EPSILON, LIGHT_SPEED_AIR
 from alb_sim.physics.emission.times import (
     sample_gaussian_pulse_batch,
@@ -73,7 +74,19 @@ class SimulationModel:
             else self._config.sensor.field_of_view
         )
 
-        return sample_directions_in_cone(
+        origin_point = (
+            np.array([0, 0, 0])
+            if forward
+            else sample_disk_points(
+                cone_direction,
+                self._config.sensor.aperture_radius,
+                np.array([0, 0, 0]),
+                num_samples,
+                rng,
+            )
+        )
+
+        return origin_point + sample_directions_in_cone(
             cone_direction, cone_half_angle, num_samples, rng
         )
 
