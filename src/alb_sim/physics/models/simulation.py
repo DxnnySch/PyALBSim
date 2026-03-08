@@ -63,6 +63,52 @@ class SimulationModel:
     def seafloor_albedo(self) -> float:
         return self._config.sea_floor.albedo
 
+    @property
+    def heatmap_config(self):
+        """Return the heatmap configuration."""
+        return self._config.heatmap
+
+    # ========================================
+    # Intersection Points
+    # ========================================
+
+    @property
+    def water_surface_intersection(self) -> Vector3:
+        """
+        Compute the intersection position of the laser beam with the water surface.
+        Returns the (x, y, z) intersection point on the water surface (y = water_surface_y).
+        """
+        # Laser origin at (0, 0, 0)
+        laser_direction = self.laser.direction
+
+        water_surface_interaction_point = (
+            self.water_surface_y / laser_direction[1]
+        ) * laser_direction
+
+        return water_surface_interaction_point
+
+    @property
+    def sea_floor_intersection(self) -> Vector3:
+        """
+        Compute the intersection position of the laser beam with the sea floor.
+        Returns the (x, y, z) intersection point on the sea floor (y = seafloor_y).
+        """
+        # Laser origin at (0, 0, 0)
+        laser_direction = self.laser.direction
+        refraction_direction = self.sea_surface.calculate_refraction_direction(
+            np.array([laser_direction]), np.array([0, 1, 0])
+        )[0][0]
+
+        water_surface_interaction_point = (
+            self.water_surface_y / laser_direction[1]
+        ) * laser_direction
+        seafloor_interaction_point = (
+            water_surface_interaction_point
+            + (-self.water.depth / refraction_direction[1]) * refraction_direction
+        )
+
+        return seafloor_interaction_point
+
     # ========================================
     # Emission
     # ========================================

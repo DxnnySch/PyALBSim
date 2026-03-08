@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 
+from alb_sim.config.heatmap import HeatmapConfig
 from alb_sim.config.laser import LaserConfig
 from alb_sim.config.scene import SceneConfig
 from alb_sim.config.sea_floor import SeaFloorConfig
@@ -47,4 +48,11 @@ class SimulationConfig:
     sea_surface: SeaSurfaceConfig = field(
         default_factory=SeaSurfaceConfig,
         metadata={"unit": "SeaSurfaceConfig", "description": "Sea surface config"},
+    )
+    heatmap: HeatmapConfig = field(
+        default_factory=HeatmapConfig,
+        metadata={
+            "unit": "HeatmapConfig",
+            "description": "Sampled photon heatmap config",
+        },
     )

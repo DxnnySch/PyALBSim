@@ -9,3 +9,5 @@ class PhotonMapData:
     directions: Vector3Array  # (N, 3)
     energies: Array  # (N,)
     times: Array  # (N,)
+    first_water_interaction: Vector3Array  # (N, 3)
+    seafloor_interaction: Vector3Array  # (N, 3)

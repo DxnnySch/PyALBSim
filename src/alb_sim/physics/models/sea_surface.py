@@ -50,7 +50,7 @@ class SeaSurfaceModel:
                 sensor_photon_direction,
                 normal_direction,
                 self._config.roughness,
-                self._water_model.layers[0].refractive_index,
+                self._water_model.layers[0].refractive_index_at(0),
                 1,
                 self.base_reflectance,
             )
@@ -66,5 +66,5 @@ class SeaSurfaceModel:
             incoming_directions,
             normal,
             1,
-            self._water_model.layers[0].refractive_index,
+            self._water_model.layers[0].refractive_index_at(0),
         )

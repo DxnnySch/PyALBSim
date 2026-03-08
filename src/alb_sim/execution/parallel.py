@@ -17,6 +17,7 @@ from alb_sim.photon_mapping.photon_map_index import PhotonMapIndex
 from alb_sim.photon_mapping.photon_storage import PhotonStorage
 from alb_sim.photon_mapping.photon_type import PhotonType
 from alb_sim.photon_mapping.print_photon_map_stats import photon_map_stats
+from alb_sim.utils.heatmap_result import SampledHeatmapsResult
 from alb_sim.utils.types import Array
 
 
@@ -43,7 +44,8 @@ def forward_worker(args: tuple[SimulationConfig, RunConfig, Union[int, None]]):
 
     sim.simulate_batch(run_config.photons_per_batch_forward, forward=True)
     duration = perf_counter() - start
-    return sim.photon_storage, duration
+    radius_heatmap = sim.scatter_radius_heatmap if config.heatmap.enabled else None
+    return sim.photon_storage, duration, radius_heatmap
 
 
 # ==============================
@@ -76,7 +78,16 @@ def backward_worker_batch(args: tuple[SimulationConfig, RunConfig, Union[int, No
 
     sim.simulate_batch(run_config.photons_per_batch_backward, forward=False)
     duration = perf_counter() - start
-    return sim.return_waveform, duration
+
+    if config.heatmap.enabled:
+        heatmaps = (
+            sim.sampled_water_heatmap,
+            sim.sampled_seafloor_heatmap,
+        )
+    else:
+        heatmaps = None
+
+    return sim.return_waveform, duration, heatmaps
 
 
 # ==============================
@@ -84,10 +95,14 @@ def backward_worker_batch(args: tuple[SimulationConfig, RunConfig, Union[int, No
 # ==============================
 def run_with_progress(pool, worker, args_list, label, num_batches, num_processes):
     results = []
+    heatmap_results = []
     times = []
     start_time = perf_counter()
-    for i, (res, task_time) in enumerate(pool.imap_unordered(worker, args_list), 1):
+    for i, (res, task_time, heatmap_result) in enumerate(
+        pool.imap_unordered(worker, args_list), 1
+    ):
         results.append(res)
+        heatmap_results.append(heatmap_result)
         times.append(task_time)
         since_start = perf_counter() - start_time
         eta = np.mean(times) * (
@@ -98,7 +113,7 @@ def run_with_progress(pool, worker, args_list, label, num_batches, num_processes
             end=", ",
         )
         print(f"{(since_start / 60):.2f} min since start, ETA: {(eta / 60):.2f} min")
-    return results
+    return results, heatmap_results
 
 
 # ==============================
@@ -110,7 +125,20 @@ def run_parallel(
     simulation_config: SimulationConfig,
     run_config: RunConfig,
     seed: Union[int, None] = None,
-) -> dict[PhotonType, Array]:
+) -> tuple[
+    dict[PhotonType, Array],
+    dict[PhotonType, PhotonMapData],
+    Union[SampledHeatmapsResult, None],
+]:
+    """
+    Run the parallel simulation.
+
+    Returns:
+        tuple containing:
+        - waveform: Dictionary mapping PhotonType to return waveform arrays
+        - photon_maps_data: Dictionary mapping PhotonType to stored photon data (forward pass)
+        - sampled_heatmaps_result: Pre-computed heatmaps of sampled photon energy (or None if disabled)
+    """
 
     # ------------------------------
     # Forward pass
@@ -121,7 +149,7 @@ def run_parallel(
         (simulation_config, run_config, seed) for _ in range(run_config.batches_forward)
     ]
     with mp.Pool(processes=run_config.processes) as pool:
-        forward_results = run_with_progress(
+        forward_results, forward_radius_heatmaps = run_with_progress(
             pool,
             forward_worker,
             forward_args,
@@ -159,7 +187,7 @@ def run_parallel(
         print(
             f"initialized workers in {(perf_counter()-start_time):.2f} s ({(perf_counter()-start_time)/60:.2f} min)"
         )
-        backward_results = run_with_progress(
+        backward_results, heatmap_results = run_with_progress(
             pool,
             backward_worker_batch,
             backward_args,
@@ -168,6 +196,27 @@ def run_parallel(
             run_config.processes,
         )
 
+    # Merge waveform results
     waveform = merge_results(backward_results)
 
-    return waveform
+    # Merge forward scatter radius heatmaps
+    valid_radius_heatmaps = [h for h in forward_radius_heatmaps if h is not None]
+    scatter_radius_heatmap = (
+        np.sum(valid_radius_heatmaps, axis=0) if valid_radius_heatmaps else None
+    )
+
+    # Merge backward heatmap results (simple addition)
+    sampled_heatmaps = None
+    valid_heatmaps = [h for h in heatmap_results if h is not None]
+    if valid_heatmaps:
+        # All workers have the same extent/center, just sum the heatmaps
+        water_heatmap = np.sum([h[0] for h in valid_heatmaps], axis=0)
+        seafloor_heatmap = np.sum([h[1] for h in valid_heatmaps], axis=0)
+
+        sampled_heatmaps = SampledHeatmapsResult(
+            water_heatmap=water_heatmap,
+            seafloor_heatmap=seafloor_heatmap,
+            scatter_radius_heatmap=scatter_radius_heatmap,
+        )
+
+    return waveform, photon_maps_data, sampled_heatmaps

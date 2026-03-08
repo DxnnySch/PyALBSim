@@ -1,5 +1,6 @@
 import secrets
 from time import perf_counter
+from typing import Optional
 
 import numpy as np
 
@@ -52,7 +53,7 @@ def linear_backward(simulation: Simulation, photons_per_batch: int, batches: int
 def run_linear(
     simulation_config: SimulationConfig,
     run_config: RunConfig,
-    rng: np.random.Generator = None,
+    rng: Optional[np.random.Generator] = None,
 ) -> dict[PhotonType, Array]:
     if rng is None:
         rng = np.random.default_rng(secrets.randbits(128))

@@ -4,6 +4,10 @@ from time import perf_counter
 import numpy as np
 
 from alb_sim.config.simulation import SimulationConfig
+from alb_sim.math.accumulate_heatmap import (
+    accumulate_scatter_radius_heatmap,
+    accumulate_to_heatmap,
+)
 from alb_sim.math.vector_math import dot_batch_single, length_batch
 from alb_sim.photon_mapping.photon_map_index import PhotonMapIndex
 from alb_sim.photon_mapping.photon_storage import PhotonStorage
@@ -31,6 +35,26 @@ class Simulation:
             for type in PhotonType
         }
 
+        if self.model.heatmap_config.enabled:
+            bins = self.model.heatmap_config.bins
+            # Water surface heatmap (first_water_interaction)
+            self.sampled_water_heatmap = np.zeros((bins, bins), dtype=np.float32)
+            self._water_extent = self.model.heatmap_config.water_extent
+            self._water_bin_size = 2 * self._water_extent / bins
+
+            # Seafloor heatmap (seafloor_interaction)
+            self.sampled_seafloor_heatmap = np.zeros((bins, bins), dtype=np.float32)
+            self._seafloor_extent = self.model.heatmap_config.seafloor_extent
+            self._seafloor_bin_size = 2 * self._seafloor_extent / bins
+
+            # Center point for heatmaps
+            self._heatmap_water_surface_center = self.model.water_surface_intersection
+            self._heatmap_sea_floor_center = self.model.sea_floor_intersection
+            self._heatmap_bins = bins
+
+            # Scatter radius correlation heatmap (forward pass only)
+            self.scatter_radius_heatmap = np.zeros((bins, bins), dtype=np.float32)
+
     def simulate_batch(self, num_photons: int, *, forward: bool):
         self.current_step = 0
 
@@ -44,6 +68,8 @@ class Simulation:
         time_deltas = self.model.get_emission_time_deltas(
             num_photons, self.rng, forward=forward
         )
+        first_water_interaction = np.full((num_photons, 3), np.nan, dtype=np.float32)
+        seafloor_interaction = np.full((num_photons, 3), np.nan, dtype=np.float32)
 
         wrapper = PhotonWrapper(
             positions,
@@ -52,6 +78,8 @@ class Simulation:
             optical_depth,
             optical_depth_target,
             time_deltas,
+            first_water_interaction,
+            seafloor_interaction,
         )
 
         batch_start_time = perf_counter()
@@ -77,6 +105,14 @@ class Simulation:
         self.photon_storage.directions[photon_type].append(wrapper.directions.copy())
         self.photon_storage.energies[photon_type].append(wrapper.energies.copy())
         self.photon_storage.times[photon_type].append(wrapper.time_deltas.copy())
+        if wrapper.first_water_interaction is not None:
+            self.photon_storage.first_water_interaction[photon_type].append(
+                wrapper.first_water_interaction.copy()
+            )
+        if wrapper.seafloor_interaction is not None:
+            self.photon_storage.seafloor_interaction[photon_type].append(
+                wrapper.seafloor_interaction.copy()
+            )
 
     def sample_photons(self, wrapper: PhotonWrapper, photon_type: PhotonType) -> None:
         photon_map = self.photon_maps[photon_type]
@@ -90,6 +126,14 @@ class Simulation:
             photon_direction: Vector3Array = photon_map.data.directions[idx]
             photon_energy: Array = photon_map.data.energies[idx]
             photon_time_step: Array = photon_map.data.times[idx]
+
+            # Get interaction positions from the sampled photons
+            photon_first_water_interaction: Vector3Array = (
+                photon_map.data.first_water_interaction[idx]
+            )
+            photon_sea_floor_interaction: Vector3Array = (
+                photon_map.data.seafloor_interaction[idx]
+            )
 
             if photon_type == PhotonType.BOTTOM_REFLECTION:
                 # lambertian reflection, energy only depends on angle of sensor photon direction to normal
@@ -136,6 +180,25 @@ class Simulation:
             sample_idx = (store_time / self.model.sample_multiplier).astype(int)
 
             np.add.at(self.return_waveform[photon_type], sample_idx, store_energy)
+
+            # Accumulate to heatmaps if enabled
+            if self.model.heatmap_config.enabled:
+                accumulate_to_heatmap(
+                    photon_first_water_interaction,
+                    store_energy,
+                    self.sampled_water_heatmap,
+                    self._heatmap_water_surface_center,
+                    self._water_extent,
+                    self._water_bin_size,
+                )
+                accumulate_to_heatmap(
+                    photon_sea_floor_interaction,
+                    store_energy,
+                    self.sampled_seafloor_heatmap,
+                    self._heatmap_sea_floor_center,
+                    self._seafloor_extent,
+                    self._seafloor_bin_size,
+                )
 
     # ========================================
     # Step Function
@@ -210,6 +273,9 @@ class Simulation:
             wrapper.energies[enter_idx] = enter_subset.energies
             wrapper.optical_depth[enter_idx] = enter_subset.optical_depth
             wrapper.optical_depth_target[enter_idx] = enter_subset.optical_depth_target
+            wrapper.first_water_interaction[enter_idx] = (
+                enter_subset.first_water_interaction
+            )
 
         # Water - Air
         if exit_idx.size > 0:
@@ -235,6 +301,9 @@ class Simulation:
             wrapper.optical_depth[seafloor_idx] = seafloor_subset.optical_depth
             wrapper.optical_depth_target[seafloor_idx] = (
                 seafloor_subset.optical_depth_target
+            )
+            wrapper.seafloor_interaction[seafloor_idx] = (
+                seafloor_subset.seafloor_interaction
             )
 
     # ========================================
@@ -314,6 +383,9 @@ class Simulation:
         intersection_points = (
             subset.positions + intersection_fraction[:, np.newaxis] * step_vectors
         )
+
+        # Record first water interaction position
+        subset.first_water_interaction = intersection_points.copy()
 
         # Refraction calculation, reverse direction away from intersection point
         cos_incidence = dot_batch_single(-subset.directions, np.array([0, 1, 0]))
@@ -445,6 +517,25 @@ class Simulation:
         intersection_points = (
             subset.positions + intersection_fraction[:, np.newaxis] * step_vectors
         )
+
+        # Record seafloor interaction position
+        subset.seafloor_interaction = intersection_points.copy()
+
+        # Accumulate radius correlation heatmap (forward pass only)
+        if (
+            forward
+            and self.model.heatmap_config.enabled
+            and subset.first_water_interaction is not None
+        ):
+            accumulate_scatter_radius_heatmap(
+                self.scatter_radius_heatmap,
+                subset.first_water_interaction,
+                intersection_points,
+                self._heatmap_water_surface_center,
+                self._heatmap_sea_floor_center,
+                self._water_extent,
+                self._seafloor_extent,
+            )
 
         # Photon Mapping
         reflection_subset = subset.copy()

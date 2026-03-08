@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Optional
 
 from alb_sim.utils.types import Array, Vector3Array
 
@@ -11,6 +12,8 @@ class PhotonWrapper:
     optical_depth: Array
     optical_depth_target: Array
     time_deltas: Array
+    first_water_interaction: Optional[Vector3Array] = None
+    seafloor_interaction: Optional[Vector3Array] = None
 
     def subset(self, idx):
         """View-based slicing (no copies)."""
@@ -21,6 +24,16 @@ class PhotonWrapper:
             optical_depth=self.optical_depth[idx],
             optical_depth_target=self.optical_depth_target[idx],
             time_deltas=self.time_deltas[idx],
+            first_water_interaction=(
+                self.first_water_interaction[idx]
+                if self.first_water_interaction is not None
+                else None
+            ),
+            seafloor_interaction=(
+                self.seafloor_interaction[idx]
+                if self.seafloor_interaction is not None
+                else None
+            ),
         )
 
     def copy(self):
@@ -31,4 +44,14 @@ class PhotonWrapper:
             optical_depth=self.optical_depth.copy(),
             optical_depth_target=self.optical_depth_target.copy(),
             time_deltas=self.time_deltas.copy(),
+            first_water_interaction=(
+                self.first_water_interaction.copy()
+                if self.first_water_interaction is not None
+                else None
+            ),
+            seafloor_interaction=(
+                self.seafloor_interaction.copy()
+                if self.seafloor_interaction is not None
+                else None
+            ),
         )
