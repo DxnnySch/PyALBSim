@@ -34,8 +34,8 @@ class Simulation:
     def simulate_batch(self, num_photons: int, *, forward: bool):
         self.current_step = 0
 
-        positions = np.zeros((num_photons, 3), dtype=np.float32)
-        directions = self.model.sample_vector_direction_in_cone(
+        positions = np.zeros((num_photons, 3), dtype=np.float64)
+        directions = self.model.sample_starting_direction(
             num_photons, self.rng, forward=forward
         )
         energies = np.full(num_photons, 1, dtype=np.float32)
@@ -73,23 +73,23 @@ class Simulation:
         wrapper: PhotonWrapper,
         photon_type: PhotonType,
     ) -> None:
-        self.photon_storage.positions[photon_type].append(wrapper.positions)
-        self.photon_storage.directions[photon_type].append(wrapper.directions)
-        self.photon_storage.energies[photon_type].append(wrapper.energies)
-        self.photon_storage.times[photon_type].append(wrapper.time_deltas)
+        self.photon_storage.positions[photon_type].append(wrapper.positions.copy())
+        self.photon_storage.directions[photon_type].append(wrapper.directions.copy())
+        self.photon_storage.energies[photon_type].append(wrapper.energies.copy())
+        self.photon_storage.times[photon_type].append(wrapper.time_deltas.copy())
 
     def sample_photons(self, wrapper: PhotonWrapper, photon_type: PhotonType) -> None:
+        photon_map = self.photon_maps[photon_type]
+
         for sensor_position, sensor_direction, sensor_energy, sensor_time_step in zip(
             wrapper.positions, wrapper.directions, wrapper.energies, wrapper.time_deltas
         ):
-            dist, idx = self.photon_maps[photon_type].tree.query(
+            dist, idx = photon_map.tree.query(
                 sensor_position, k=self.model.photon_mapping_k
             )
-            photon_direction: Vector3Array = self.photon_maps[
-                photon_type
-            ].data.directions[idx]
-            photon_energy: Array = self.photon_maps[photon_type].data.energies[idx]
-            photon_time_step: Array = self.photon_maps[photon_type].data.times[idx]
+            photon_direction: Vector3Array = photon_map.data.directions[idx]
+            photon_energy: Array = photon_map.data.energies[idx]
+            photon_time_step: Array = photon_map.data.times[idx]
 
             if photon_type == PhotonType.BOTTOM_REFLECTION:
                 # lambertian reflection, energy only depends on angle of sensor photon direction to normal
@@ -126,14 +126,6 @@ class Simulation:
                 )
 
                 kernel_size = np.pi * dist[-1] ** 2
-            # elif photon_type == PhotonType.SURFACE_TRANSMISSION_DOWN:
-            #     energy_multiplier = self.model.sea_surface.transmitted_energy(
-            #         -photon_direction,
-            #         -sensor_direction,
-            #         np.array([0, -1, 0])
-            #     )
-
-            #     kernel_size = np.pi * dist[-1] ** 2
 
             kernel_norm = 1.0 / kernel_size
 
@@ -143,7 +135,6 @@ class Simulation:
             store_time = sensor_time_step + photon_time_step
             sample_idx = (store_time / self.model.sample_multiplier).astype(int)
 
-            # TODO: Test multiple waveforms
             np.add.at(self.return_waveform[photon_type], sample_idx, store_energy)
 
     # ========================================
@@ -207,8 +198,6 @@ class Simulation:
             wrapper.energies[water_idx] = water_subset.energies
             wrapper.optical_depth[water_idx] = water_subset.optical_depth
             wrapper.optical_depth_target[water_idx] = water_subset.optical_depth_target
-            # print("in water water", len(wrapper.optical_depth_target))
-            # print(wrapper.optical_depth_target)
 
         # Air - Water
         if enter_idx.size > 0:
@@ -221,8 +210,6 @@ class Simulation:
             wrapper.energies[enter_idx] = enter_subset.energies
             wrapper.optical_depth[enter_idx] = enter_subset.optical_depth
             wrapper.optical_depth_target[enter_idx] = enter_subset.optical_depth_target
-            # print("in sim step, len", len(wrapper.optical_depth_target))
-            # print(wrapper.optical_depth_target)
 
         # Water - Air
         if exit_idx.size > 0:
@@ -334,21 +321,13 @@ class Simulation:
         reflection_weight = fresnel_schlick(
             cos_incidence, self.model.sea_surface.base_reflectance
         )
-        # print("mean reflection weight", reflection_weight.mean()) # TODO
         transmission_weight = 1.0 - reflection_weight
 
-        # Photon mapping
-        # reflection_mask = (
-        #     self.rng.random(size=reflection_weight.shape) < reflection_weight
-        # )
-        # reflection_subset = subset.subset(reflection_mask)
-        # reflection_subset.positions = intersection_points[reflection_mask]
         reflection_subset = subset.copy()
         reflection_subset.positions = intersection_points
         reflection_subset.time_deltas += self.current_step
         if forward:
             self.store_photons(reflection_subset, PhotonType.SURFACE_REFLECTION)
-            # self.store_photons(reflection_subset, PhotonType.SURFACE_TRANSMISSION_DOWN)
         else:
             self.sample_photons(reflection_subset, PhotonType.SURFACE_REFLECTION)
             self.sample_photons(reflection_subset, PhotonType.SURFACE_TRANSMISSION_UP)
@@ -371,8 +350,6 @@ class Simulation:
         # Set optical depth targets
         rand_vals = self.rng.random(len(intersection_points)).astype(np.float32)
         subset.optical_depth_target = -np.log(rand_vals)
-        # print("setting optical depth target, len", len(subset.optical_depth_target))
-        # print(subset.optical_depth_target)
 
         return subset
 
@@ -413,18 +390,11 @@ class Simulation:
         )
 
         # photon_mapping
-        # print("transmitted", np.count_nonzero(~reflection_mask))
         transmission_subset = subset.subset(~reflection_mask)
         transmission_subset.positions = intersection_points[~reflection_mask]
-        # transmission_subset = subset.copy()
-        # transmission_subset.positions = intersection_points
         transmission_subset.time_deltas += self.current_step
         if forward:
             self.store_photons(transmission_subset, PhotonType.SURFACE_TRANSMISSION_UP)
-            # self.store_photons(transmission_subset, PhotonType.SURFACE_REFLECTION)
-        else:
-            self.sample_photons(transmission_subset, PhotonType.SURFACE_TRANSMISSION_UP)
-        #     self.sample_photons(transmission_subset, PhotonType.SURFACE_TRANSMISSION)
 
         # Refraction and reflection direction
         refracted_directions, total_internal_reflections_mask = (

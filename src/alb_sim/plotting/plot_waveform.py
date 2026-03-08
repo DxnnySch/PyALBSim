@@ -1,61 +1,22 @@
+from typing import Union
+
 import matplotlib.pyplot as plt
 import numpy as np
 
-
-def plot_2d(
-    data: np.ndarray,
-    title: str = "vector",
-    xlabel: str = "X-Axis",
-    ylabel: str = "Y-Axis",
-):
-    """
-    Plots a line diagram.
-
-    Args:
-        data (np.ndarray): A (N,) array of numbers.
-        title (str): Title of the plot.
-        xlabel (str): Label of the x-axis
-        ylabel (str): Label of the y-axis
-    """
-
-    plt.figure(figsize=(6, 4))
-    plt.plot(data, color="skyblue", alpha=0.75)
-    plt.title(title)
-    plt.xlabel(xlabel)
-    plt.ylabel(ylabel)
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    plt.subplots_adjust(left=0.05, bottom=0.075, right=0.975, top=0.945)
-    plt.show()
+from alb_sim.plotting.format_value_for_plot import format_value
+from alb_sim.utils.types import Array
 
 
-def format_value(v):
-    """Nicely formats numeric values for display."""
-    if isinstance(v, (int, np.integer)):
-        return f"{v:,}"  # add commas for large integers
-    elif isinstance(v, (float, np.floating)):
-        # Format floats depending on magnitude
-        if abs(v) >= 1e3 or abs(v) < 1e-3:
-            return f"{v:.3e}"  # scientific notation
-        else:
-            return f"{v:.3f}".rstrip("0").rstrip(
-                "."
-            )  # up to 3 decimals, remove trailing zeros
-    else:
-        return str(v)
-
-
-def plot_2d_better(
-    data: np.ndarray,
-    title: str = "vector",
-    xlabel: str = "X-Axis",
-    ylabel: str = "Y-Axis",
-    xlim: tuple[int, int] | None = None,
-    params: dict | None = None,
-    save_path: str | None = None,
+def plot_waveform(
+    data: Array,
+    title: str = "Full Waveform",
+    xlabel: str = "Step / Distance",
+    ylabel: str = "Photon contribution",
+    xlim: Union[tuple[int, int], None] = None,
+    params: Union[dict, None] = None,
+    save_path: Union[str, None] = None,
     padding: int = 50,
-    show: bool = False,
+    show: bool = True,
 ):
     """
     Plots a line diagram, shows it full-screen, and optionally saves it.
@@ -75,14 +36,7 @@ def plot_2d_better(
 
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    # Try fullscreen
-    mng = plt.get_current_fig_manager()
-    try:
-        mng.full_screen_toggle()
-    except Exception:
-        fig.set_size_inches(19.2, 10.8)  # fallback fullscreen
-
-    ax.plot(data, color="skyblue", alpha=0.75)
+    ax.plot(data)
     ax.set_title(title)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
@@ -134,8 +88,7 @@ def plot_2d_better(
         )
 
     plt.tight_layout()
-    # plt.subplots_adjust(left=0.05, bottom=0.075, right=0.975, top=0.945)
-    plt.subplots_adjust(left=0.05, bottom=0.275, right=0.775, top=0.95)  # laptop
+    plt.subplots_adjust(left=0.05, bottom=0.075, right=0.975, top=0.945)
 
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches="tight")

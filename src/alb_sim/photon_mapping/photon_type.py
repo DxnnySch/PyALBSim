@@ -6,4 +6,3 @@ class PhotonType(Enum):
     SCATTER = auto()
     SURFACE_REFLECTION = auto()
     SURFACE_TRANSMISSION_UP = auto()
-    # SURFACE_TRANSMISSION_DOWN = auto()

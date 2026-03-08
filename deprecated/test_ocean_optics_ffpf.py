@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from utils.gpt_ffscatter import generate_ff_phase_function
-from alb_sim.plotting.plot_2d import plot_2d
+from alb_sim.plotting.plot_waveform import plot_waveform
 from alb_sim.plotting.plot_histogram import plot_histogram
 from utils.ffscatter import FFScatter
 

@@ -1,14 +1,12 @@
-import os
 from alb_sim.config.run import RunConfig
 from alb_sim.config.sea_floor import SeaFloorConfig
-from alb_sim.config.sea_surface import SeaSurfaceConfig
-from alb_sim.config.water import TurbidityLayerConfig, WaterConfig, FournierForandConfig
+from alb_sim.config.water import TurbidityLayerConfig, WaterConfig
 from alb_sim.config.simulation import SimulationConfig
 from alb_sim.config.sensor import SensorConfig
-from alb_sim.execution.parallel import run_parallel, merge_results
-from alb_sim.utils.parameter_profile import LinearParameter, ExponentialParameter
+from alb_sim.execution.parallel import run_parallel
+from alb_sim.plotting.plot_waveform import plot_waveform
 
-multiplier = 5
+multiplier = 1
 simulation_config = SimulationConfig(
     water=WaterConfig(
         layers=(
@@ -31,17 +29,4 @@ run_config = RunConfig(
 
 waveform = run_parallel(simulation_config, run_config)
 
-data = waveform
-
-import numpy as np
-import matplotlib.pyplot as plt
-from alb_sim.utils.water_layer_steps import get_water_layer_steps
-
-fig, ax = plt.subplots(figsize=(10, 6))
-ax.plot(np.sum(list(data.values()), axis=0))
-ax.set_xlim(1850, 1980)
-ax.set_xlabel("Step / Distance")
-ax.set_ylabel("Photon contribution")
-ax.set_title("Photon contributions")
-plt.tight_layout()
-plt.show()
+plot_waveform(waveform, xlim=(1850, 1980))

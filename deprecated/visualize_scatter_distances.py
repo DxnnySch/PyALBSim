@@ -2,7 +2,7 @@ import numpy as np
 
 from camera import Camera
 from laser import Laser
-from alb_sim.plotting.plot_2d import plot_2d
+from alb_sim.plotting.plot_waveform import plot_waveform
 from alb_sim.plotting.plot_histogram import plot_histogram
 from world import World
 rng = np.random.default_rng(42)

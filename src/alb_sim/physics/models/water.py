@@ -142,14 +142,22 @@ class TurbidityLayerModel:
         return lidar_attenuation_coefficient
 
     @overload
+    def refractive_index_at(self, z_local: Array) -> Array: ...
+
+    @overload
+    def refractive_index_at(self, z_local: float) -> float: ...
+
+    def refractive_index_at(self, z_local: Union[Array, float]) -> Union[Array, float]:
+        return self._eval(self._config.refractive_index, z_local)
+
+    @overload
     def light_speed_at(self, z_local: Array) -> Array: ...
 
     @overload
     def light_speed_at(self, z_local: float) -> float: ...
 
     def light_speed_at(self, z_local: Union[Array, float]) -> Union[Array, float]:
-        refractive_index = self._eval(self._config.refractive_index, z_local)
-        return LIGHT_SPEED_AIR / refractive_index
+        return LIGHT_SPEED_AIR / self.refractive_index_at(z_local)
 
     @overload
     def lidar_attenuation_coefficient_at(self, z_local: Array) -> Array: ...

@@ -1,9 +1,13 @@
 import os
+
+import numpy as np
 from alb_sim.config.run import RunConfig
 from alb_sim.config.sea_floor import SeaFloorConfig
 from alb_sim.config.water import TurbidityLayerConfig, WaterConfig
 from alb_sim.config.simulation import SimulationConfig
 from alb_sim.execution.parallel import run_parallel
+from alb_sim.plotting.plot_stacked_waveform import plot_stacked_waveform
+from alb_sim.plotting.plot_waveform import plot_waveform
 
 simulation_config = SimulationConfig(
     water=WaterConfig(
@@ -23,18 +27,6 @@ run_config = RunConfig(
 
 waveform = run_parallel(simulation_config, run_config)
 
-data = waveform
+plot_stacked_waveform(waveform)
 
-import numpy as np
-import matplotlib.pyplot as plt
-
-x = np.arange(len(next(iter(data.values()))))
-labels = [pt.name for pt in data.keys()]
-values = np.vstack(list(data.values()))
-plt.figure()
-plt.stackplot(x, values, labels=labels)
-plt.legend(loc="upper left")
-plt.xlabel("Step / Distance")
-plt.ylabel("Photon contribution")
-plt.title("Photon contributions (stacked)")
-plt.show()
+plot_waveform(np.sum(list(waveform.values()), axis=0))

@@ -14,8 +14,8 @@ def sample_disk_points(
     """
     Generate num_samples positions on a disk, defined by center point at origin, radius and normal_direction
     """
-    xi1 = np.random.rand(num_samples)
-    xi2 = np.random.rand(num_samples)
+    xi1 = rng.random(num_samples)
+    xi2 = rng.random(num_samples)
 
     r = radius * np.sqrt(xi1)
     theta = 2 * np.pi * xi2
@@ -26,10 +26,10 @@ def sample_disk_points(
 
     # Build rotation matrix from [0, 0, 1] to laser_dir
     rotation_matrix = rotation_from_z_batch(
-        normal_direction.astype(np.float32)[np.newaxis, :]
+        normal_direction.astype(np.float64)[np.newaxis, :]
     )[0]
 
     disk_points = local_points @ rotation_matrix.T
     disk_points += origin
 
-    return disk_points.astype(np.float32)
+    return disk_points.astype(np.float64)

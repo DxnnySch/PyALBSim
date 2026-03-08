@@ -36,7 +36,7 @@ def ggx_distribution(n_dot_h: Vector3Array, alpha: float) -> Array:
     return alpha2 / (denom + EPSILON)
 
 
-def smith_ggx_G1(n_dot_v: Union[Array, float], alpha: float):
+def smith_ggx_g1(n_dot_v: Union[Array, float], alpha: float):
     """
     Smith G1 term for GGX distribution.
 
@@ -61,7 +61,7 @@ def smith_ggx_G1(n_dot_v: Union[Array, float], alpha: float):
     return 2.0 * n_dot_v / denom
 
 
-def smith_ggx_G(n_dot_wi: Array, n_dot_wo: float, alpha: float):
+def smith_ggx_g(n_dot_wi: Array, n_dot_wo: float, alpha: float):
     """
     Height-correlated Smith geometry term.
 
@@ -76,11 +76,11 @@ def smith_ggx_G(n_dot_wi: Array, n_dot_wo: float, alpha: float):
     G : Geometry attenuation term
     """
 
-    G1_i = smith_ggx_G1(n_dot_wi, alpha)
-    G1_o = smith_ggx_G1(n_dot_wo, alpha)
+    g1_i = smith_ggx_g1(n_dot_wi, alpha)
+    g1_o = smith_ggx_g1(n_dot_wo, alpha)
 
     # return 1 / (1 + G1_i + G1_o)
-    return G1_i * G1_o
+    return g1_i * g1_o
 
 
 def microfacet_reflected_energy(
@@ -125,16 +125,16 @@ def microfacet_reflected_energy(
     valid = (n_dot_wi > 0) & (n_dot_wo > 0)
 
     # Terms
-    D = ggx_distribution(n_dot_h, alpha)
-    G = smith_ggx_G(n_dot_wi, n_dot_wo, alpha)
-    F = fresnel_schlick(wi_dot_h, base_reflectance)
+    d_term = ggx_distribution(n_dot_h, alpha)
+    g_term = smith_ggx_g(n_dot_wi, n_dot_wo, alpha)
+    f_term = fresnel_schlick(wi_dot_h, base_reflectance)
 
     # Cook-Torrance BRDF
     denom = 4.0 * n_dot_wi * n_dot_wo + EPSILON
-    spec = (D * G * F) / denom
+    spec = (d_term * g_term * f_term) / denom
     out = np.zeros(len(incident_direction))
     out[valid] = spec[valid]
-    return out
+    return out.astype(np.float32)
 
 
 def microfacet_transmitted_energy(
@@ -172,17 +172,17 @@ def microfacet_transmitted_energy(
     valid = (n_dot_wi * n_dot_wo) < 0.0
 
     # --- Microfacet terms (REUSED) ---
-    D = ggx_distribution(n_dot_h, alpha)
-    G = smith_ggx_G(abs(n_dot_wi), abs(n_dot_wo), alpha)
+    d_term = ggx_distribution(n_dot_h, alpha)
+    g_term = smith_ggx_g(abs(n_dot_wi), abs(n_dot_wo), alpha)
 
     # --- Fresnel ---
-    F = fresnel_schlick(wi_dot_h, base_reflectance)
-    Ft = 1.0 - F
+    f_term = fresnel_schlick(wi_dot_h, base_reflectance)
+    inverse_f_term = 1.0 - f_term
 
     # --- Jacobian term ---
     denom = eta_i * wi_dot_h + eta_o * wo_dot_h
     factor = (eta_o * eta_o * wo_dot_h) / (denom * denom + EPSILON)
 
-    btdf = Ft * D * G * factor / (abs(n_dot_wi) * abs(n_dot_wo) + EPSILON)
+    btdf = inverse_f_term * d_term * g_term * factor / (abs(n_dot_wi) * abs(n_dot_wo) + EPSILON)
 
     return np.where(valid, btdf, 0.0)

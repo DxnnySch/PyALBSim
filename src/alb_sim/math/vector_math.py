@@ -35,5 +35,5 @@ def dot_batch_batch(a_batch: Vector3Array, b_batch: Vector3Array) -> Array:
 def random_unit_vector_batch(
     num_samples: int, rng: np.random.Generator
 ) -> Vector3Array:
-    v = rng.normal(size=(num_samples, 3))
+    v = rng.normal(size=(num_samples, 3)).astype(np.float32)
     return normalize_batch(v).astype(np.float32)

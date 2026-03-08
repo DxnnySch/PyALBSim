@@ -68,4 +68,4 @@ def photon_summary(photon_maps) -> str:
         / 1024
     )
 
-    f"{n} total photons across {len(photon_maps)} maps, {mem:.2f} KiB"
+    return f"{n} total photons across {len(photon_maps)} maps, {mem:.2f} KiB"

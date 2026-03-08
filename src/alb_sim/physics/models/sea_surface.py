@@ -1,7 +1,7 @@
 import numpy as np
 
 from alb_sim.config.sea_surface import SeaSurfaceConfig
-from alb_sim.config.water import WaterConfig
+from alb_sim.physics.models.water import WaterModel
 from alb_sim.physics.reflection.microfacet_brdf import (
     microfacet_reflected_energy,
     microfacet_transmitted_energy,
@@ -11,16 +11,17 @@ from alb_sim.utils.types import Array, BoolArray, Vector3, Vector3Array
 
 
 class SeaSurfaceModel:
-    def __init__(self, config: SeaSurfaceConfig, water_config: WaterConfig):
+    def __init__(self, config: SeaSurfaceConfig, water_model: WaterModel):
         self._config = config
-        self._water_config = water_config
+        self._water_model = water_model
 
         self.base_reflectance = self._calculate_base_reflectance()
 
     def _calculate_base_reflectance(self) -> float:
-        return ( # TODO: might fail if refractive Index is Scalar
-            (1 - self._water_config.layers[0].refractive_index)
-            / (1 + self._water_config.layers[0].refractive_index)
+        refractive_index = self._water_model.layers[0].refractive_index_at(0)
+        return (
+            (1 - refractive_index)
+            / (1 + refractive_index)
         ) ** 2
 
     def reflected_energy(
@@ -49,7 +50,7 @@ class SeaSurfaceModel:
                 sensor_photon_direction,
                 normal_direction,
                 self._config.roughness,
-                self._water_config.layers[0].refractive_index,
+                self._water_model.layers[0].refractive_index,
                 1,
                 self.base_reflectance,
             )
@@ -65,5 +66,5 @@ class SeaSurfaceModel:
             incoming_directions,
             normal,
             1,
-            self._water_config.layers[0].refractive_index,
+            self._water_model.layers[0].refractive_index,
         )

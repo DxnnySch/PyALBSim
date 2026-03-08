@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import math
 from simulation_multiprocess_v2 import *
-from alb_sim.plotting.plot_2d import plot_2d_better
+from alb_sim.plotting.plot_waveform import plot_2d_better
 import utils.numpy_vector as np_vec
 import matplotlib
 matplotlib.use("TkAgg")

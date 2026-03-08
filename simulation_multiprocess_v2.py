@@ -9,7 +9,7 @@ from alb_sim.photon_mapping.build_photon_map_data import build_photon_map_data
 from alb_sim.photon_mapping.photon_map_index import PhotonMapIndex
 from alb_sim.photon_mapping.photon_storage import PhotonStorage
 from alb_sim.photon_mapping.print_photon_map_stats import print_photon_map_stats
-from alb_sim.plotting.plot_2d import plot_2d, plot_2d_better
+from alb_sim.plotting.plot_waveform import plot_waveform, plot_2d_better
 
 # ==============================
 # Globals for backward workers

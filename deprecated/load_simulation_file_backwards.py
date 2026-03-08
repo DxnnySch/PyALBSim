@@ -6,7 +6,7 @@ import cProfile
 import pstats
 import time
 
-from alb_sim.plotting.plot_2d import plot_2d
+from alb_sim.plotting.plot_waveform import plot_waveform
 from alb_sim.plotting.plot_histogram import plot_histogram
 
 rng = np.random.default_rng(secrets.randbits(128))
@@ -41,7 +41,7 @@ print(f"time backward: {elapsed:.6f} seconds = {(elapsed / 60):.2f} min")
 stats = pstats.Stats(profiler).sort_stats('tottime')
 stats.print_stats(30)  # Top 30 functions
 
-plot_2d(simulation.return_waveform, ylabel="Intensity", xlabel="Sample")
+plot_waveform(simulation.return_waveform, ylabel="Intensity", xlabel="Sample")
 photons_reflections = np.array(simulation.photons_found_bottom_reflection)
 plot_histogram(photons_reflections[photons_reflections < 400], bins = 400, title="Number of Photons found at Reflections", xlabel="Photons in Radius")
 photons_scatters = np.array(simulation.photons_found_scatter)

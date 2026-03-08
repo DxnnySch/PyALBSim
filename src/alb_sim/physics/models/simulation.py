@@ -1,7 +1,10 @@
 import numpy as np
 
 from alb_sim.config.simulation import SimulationConfig
-from alb_sim.math.direction_cone import sample_directions_in_cone
+from alb_sim.math.direction_cone import (
+    sample_directions_in_cone_gaussian,
+    sample_directions_in_cone_uniform,
+)
 from alb_sim.math.disk_sampling import sample_disk_points
 from alb_sim.physics.constants import EPSILON, LIGHT_SPEED_AIR
 from alb_sim.physics.emission.times import (
@@ -11,7 +14,7 @@ from alb_sim.physics.emission.times import (
 from alb_sim.physics.models.laser import LaserModel
 from alb_sim.physics.models.sea_surface import SeaSurfaceModel
 from alb_sim.physics.models.water import WaterModel
-from alb_sim.utils.types import Array, Vector3Array
+from alb_sim.utils.types import Array, Vector3, Vector3Array
 
 
 class SimulationModel:
@@ -22,7 +25,7 @@ class SimulationModel:
         self.water = WaterModel(
             self._config.water, self._config.laser, self._config.scene
         )
-        self.sea_surface = SeaSurfaceModel(self._config.sea_surface, self._config.water)
+        self.sea_surface = SeaSurfaceModel(self._config.sea_surface, self.water)
 
         self.effective_sample_rate = (
             self._config.sample_multiplier * self._config.sensor.sample_rate
@@ -64,7 +67,7 @@ class SimulationModel:
     # Emission
     # ========================================
 
-    def sample_vector_direction_in_cone(
+    def sample_starting_direction(
         self, num_samples: int, rng: np.random.Generator, *, forward: bool
     ) -> Vector3Array:
         cone_direction = self.laser.direction
@@ -75,7 +78,7 @@ class SimulationModel:
         )
 
         origin_point = (
-            np.array([0, 0, 0])
+            np.array([0, 0, 0], dtype=np.float64)
             if forward
             else sample_disk_points(
                 cone_direction,
@@ -86,8 +89,14 @@ class SimulationModel:
             )
         )
 
-        return origin_point + sample_directions_in_cone(
-            cone_direction, cone_half_angle, num_samples, rng
+        return origin_point + (
+            sample_directions_in_cone_gaussian(
+                cone_direction, cone_half_angle, num_samples, rng
+            )
+            if forward
+            else sample_directions_in_cone_uniform(
+                cone_direction, cone_half_angle, num_samples, rng
+            )
         )
 
     def get_emission_time_deltas(
@@ -120,7 +129,7 @@ class SimulationModel:
                 (y[~mask_air] - self.water_surface_y) * -1
             )
 
-        return velocities
+        return velocities.astype(np.float64)
 
     # ========================================
     # Scattering

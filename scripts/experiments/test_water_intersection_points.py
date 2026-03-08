@@ -26,7 +26,7 @@ center_intersection = simulation_model.laser.direction * (
 
 num_photons = 10_000
 rng = np.random.default_rng(42)
-directions = simulation_model.sample_vector_direction_in_cone(
+directions = simulation_model.sample_starting_direction(
     num_photons, rng, forward=True
 )
 

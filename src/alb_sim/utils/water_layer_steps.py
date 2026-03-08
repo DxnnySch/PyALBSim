@@ -1,4 +1,5 @@
 import numpy as np
+
 from alb_sim.config.simulation import SimulationConfig
 from alb_sim.physics.constants import LIGHT_SPEED_AIR
 from alb_sim.physics.models.simulation import SimulationModel
