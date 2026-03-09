@@ -5,12 +5,12 @@ from alb_sim.physics.constants import LIGHT_SPEED_AIR
 from alb_sim.physics.models.simulation import SimulationModel
 
 
-def get_water_layer_steps(simulation_config: SimulationConfig):
+def get_water_layer_steps(simulation_config: SimulationConfig) -> list[float]:
     simulation_model = SimulationModel(simulation_config)
 
     laser_direction = simulation_model.laser.direction
 
-    water_surface_steps = (
+    water_surface_steps: float = (
         (simulation_model.water_surface_y / laser_direction[1])
         / LIGHT_SPEED_AIR
         * simulation_model.sample_rate

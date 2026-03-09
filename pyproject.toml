@@ -27,7 +27,8 @@ notebooks = [
     "ipykernel",
     "jupyterlab",
     "matplotlib",
-    "pandas"
+    "pandas",
+    "ipympl"
 ]
 dev = [
     "black",

@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,9 +13,10 @@ def plot_stacked_waveform(
     title: str = "Full Waveform (Stacked)",
     xlabel: str = "Step / Distance",
     ylabel: str = "Photon contribution",
-    xlim: Union[tuple[int, int], None] = None,
-    params: Union[dict, None] = None,
-    save_path: Union[str, None] = None,
+    xlim: Optional[tuple[int, int]] = None,
+    layer_lines: Optional[list[float]] = None,
+    params: Optional[dict] = None,
+    save_path: Optional[str] = None,
     padding: int = 50,
     show: bool = True,
 ):
@@ -30,6 +31,7 @@ def plot_stacked_waveform(
         xlabel (str): Label of the x-axis.
         ylabel (str): Label of the y-axis.
         xlim (tuple[int, int], optional): Range of x-values to display, e.g. (100, 200).
+        layer_lines (list[float], optional): x-values where the layers change.
         params (dict, optional): Parameters to annotate in the plot.
         save_path (str, optional): If given, the plot is saved to this path.
         padding (int): Number of samples to add before and after non-zero region (default: 50).
@@ -46,6 +48,10 @@ def plot_stacked_waveform(
     ax.set_ylabel(ylabel)
     # ax.legend()
     ax.grid(True)
+
+    if layer_lines is not None:
+        x_lines = np.array(layer_lines) * 2
+        ax.vlines(x_lines, 0, np.max(np.sum(list(data.values()), axis=0)))
 
     # Calculate x-limits based on non-zero y-values if not provided
     if xlim is None:
