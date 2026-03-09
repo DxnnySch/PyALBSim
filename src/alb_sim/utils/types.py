@@ -1,9 +1,9 @@
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Union
 
 import numpy as np
 import numpy.typing as npt
 
-FloatDType = np.float32 | np.float64
+FloatDType = Union[np.float32, np.float64]
 
 Vector3 = Annotated[npt.NDArray[FloatDType], Literal[3]]
 Matrix3 = Annotated[npt.NDArray[FloatDType], Literal[3, 3]]

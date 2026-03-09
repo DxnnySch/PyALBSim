@@ -1,4 +1,5 @@
 import math
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -88,7 +89,7 @@ def _radial_histogram_from_photons(
     center_xz: tuple,
     max_radius: float,
     n_bins: int,
-    photon_types: list | None = None,
+    photon_types: Optional[list] = None,
 ) -> tuple:
     """
     Compute a 1-D radial energy histogram from individual photon positions.
@@ -312,7 +313,7 @@ def _slice_from_photons(
     extent: float,
     n_bins: int,
     axis: str,
-    photon_types: list | None = None,
+    photon_types: Optional[list] = None,
 ) -> tuple:
     """
     Project photon interaction positions onto one spatial axis.

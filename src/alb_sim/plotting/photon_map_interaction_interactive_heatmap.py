@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -8,7 +8,7 @@ from matplotlib.widgets import Button, Slider
 def collect_interaction_data_from_photon_map(
     photon_maps_data: dict,
     interaction_type: str,
-    photon_types: list | None = None,
+    photon_types: Optional[list] = None,
 ) -> tuple:
     """
     Collect positions and energies for a given interaction type, filtering NaN values.
@@ -45,7 +45,7 @@ def interactive_photon_map_interaction_heatmap(
     initial_bin_size: float = 0.01,
     initial_extent_radius: float = 0.2,
     energy_weighted: bool = False,
-    photon_types: list | None = None,
+    photon_types: Optional[list] = None,
 ):
     """
     Interactive heatmap of photon interaction positions with bin-size and extent sliders.
