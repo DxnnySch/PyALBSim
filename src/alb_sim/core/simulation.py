@@ -1,5 +1,6 @@
 import logging
 from time import perf_counter
+from typing import cast
 
 import numpy as np
 
@@ -120,8 +121,9 @@ class Simulation:
         for sensor_position, sensor_direction, sensor_energy, sensor_time_step in zip(
             wrapper.positions, wrapper.directions, wrapper.energies, wrapper.time_deltas
         ):
-            dist, idx = photon_map.tree.query(
-                sensor_position, k=self.model.photon_mapping_k
+            dist, idx = cast(
+                tuple[Array, IntArray],
+                photon_map.tree.query(sensor_position, k=self.model.photon_mapping_k),
             )
             photon_direction: Vector3Array = photon_map.data.directions[idx]
             photon_energy: Array = photon_map.data.energies[idx]
@@ -151,10 +153,6 @@ class Simulation:
                 energy_multiplier = self.model.water.scatter_energy(
                     sensor_position, photon_direction, view_dir
                 )
-                # print()
-                # print(photon_direction)
-                # print(view_dir)
-                # print()
 
                 kernel_size = (4.0 / 3.0) * np.pi * dist[-1] ** 3
             elif photon_type == PhotonType.SURFACE_REFLECTION:

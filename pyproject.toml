@@ -62,3 +62,6 @@ ignore = [
     "E701",
     "E501"
 ]
+
+[tool.mypy]
+disable_error_code = ["import-untyped"]

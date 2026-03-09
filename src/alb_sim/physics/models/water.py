@@ -1,5 +1,5 @@
 import math
-from typing import Union, overload
+from typing import Union, cast, overload
 
 import numpy as np
 
@@ -70,13 +70,13 @@ class TurbidityLayerModel:
         self._z_lut = np.linspace(
             0.0,
             self._config.height,
-            self._config.num_sublayers,
+            cast(int, self._config.num_sublayers),
             dtype=np.float32,
         )
 
         self._lidar_alpha_lut = self._calculate_lidar_attenuation_coefficient(
             self._z_lut
-        ).astype(np.float32)
+        )
 
     def _eval(
         self, value: NumberOrScalar, z_local: Union[Array, float]
@@ -84,6 +84,12 @@ class TurbidityLayerModel:
         if isinstance(value, float):
             return value
         return value.at(z_local / self._config.height)
+
+    @overload
+    def _calculate_lidar_attenuation_coefficient(self, z_local: Array) -> Array: ...
+
+    @overload
+    def _calculate_lidar_attenuation_coefficient(self, z_local: float) -> float: ...
 
     def _calculate_lidar_attenuation_coefficient(
         self, z_local: Union[Array, float]

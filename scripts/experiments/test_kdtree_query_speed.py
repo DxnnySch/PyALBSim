@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.spatial import cKDTree
+from scipy.spatial import KDTree
 import time
 
 # -----------------------------
@@ -19,7 +19,7 @@ np.random.seed(0)
 photon_positions = np.random.rand(N_PHOTONS, DIM).astype(DTYPE)
 sample_positions = np.random.rand(N_SAMPLES, DIM).astype(DTYPE)
 
-tree = cKDTree(photon_positions)
+tree = KDTree(photon_positions)
 
 # Warm-up (important for fair timing)
 tree.query(sample_positions[:10], k=K)

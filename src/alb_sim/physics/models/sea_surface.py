@@ -19,10 +19,7 @@ class SeaSurfaceModel:
 
     def _calculate_base_reflectance(self) -> float:
         refractive_index = self._water_model.layers[0].refractive_index_at(0)
-        return (
-            (1 - refractive_index)
-            / (1 + refractive_index)
-        ) ** 2
+        return ((1 - refractive_index) / (1 + refractive_index)) ** 2
 
     def reflected_energy(
         self, photon_directions: Vector3Array, sensor_photon_direction: Vector3

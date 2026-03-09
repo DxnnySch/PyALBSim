@@ -1,6 +1,5 @@
 import math
 import numpy as np
-import matplotlib.pyplot as plt
 
 from alb_sim.config.run import RunConfig
 from alb_sim.config.heatmap import HeatmapConfig
@@ -48,8 +47,6 @@ waveform, photon_maps_data, sampled_heatmaps = run_parallel(simulation_config, r
 
 # ── Waveform stacked plot ──────────────────────────────────────────────────
 plot_stacked_waveform(waveform)
-
-print(waveform.keys())
 
 # ── Derived geometry ───────────────────────────────────────────────────────
 

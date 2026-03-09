@@ -183,6 +183,12 @@ def microfacet_transmitted_energy(
     denom = eta_i * wi_dot_h + eta_o * wo_dot_h
     factor = (eta_o * eta_o * wo_dot_h) / (denom * denom + EPSILON)
 
-    btdf = inverse_f_term * d_term * g_term * factor / (abs(n_dot_wi) * abs(n_dot_wo) + EPSILON)
+    btdf = (
+        inverse_f_term
+        * d_term
+        * g_term
+        * factor
+        / (abs(n_dot_wi) * abs(n_dot_wo) + EPSILON)
+    )
 
     return np.where(valid, btdf, 0.0)

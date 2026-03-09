@@ -1,3 +1,5 @@
+from typing import Any
+
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.widgets import Button, Slider
@@ -147,7 +149,12 @@ def interactive_photon_map_interaction_heatmap(
 
     ax_reset = plt.axes((0.8, 0.01, 0.1, 0.03))
     button_reset = Button(ax_reset, "Reset")
-    button_reset.on_clicked(lambda _: (slider_bin.reset(), slider_extent.reset()))
+
+    def reset_all(_: Any) -> None:
+        slider_bin.reset()
+        slider_extent.reset()
+
+    button_reset.on_clicked(reset_all)
 
     plt.show()
 
