@@ -24,7 +24,19 @@ logger = logging.getLogger(__name__)
 
 
 class Simulation:
+    """Photon Monte Carlo simulation engine for forward and backward passes."""
+
     def __init__(self, config: SimulationConfig, rng: np.random.Generator):
+        """
+        Initialise simulation state, geometry model, and photon storage.
+
+        Parameters
+        ----------
+        config : SimulationConfig
+            Global configuration for the scene, water column, laser, sensor, and outputs.
+        rng : numpy.random.Generator
+            Random number generator used for all stochastic sampling.
+        """
         self.model = SimulationModel(config)
         self.rng = rng
 
@@ -57,6 +69,7 @@ class Simulation:
             self.scatter_radius_heatmap = np.zeros((bins, bins), dtype=np.float32)
 
     def simulate_batch(self, num_photons: int, *, forward: bool):
+        """Run a full batch of photons through all simulation time steps."""
         self.current_step = 0
 
         positions = np.zeros((num_photons, 3), dtype=np.float64)
@@ -102,6 +115,7 @@ class Simulation:
         wrapper: PhotonWrapper,
         photon_type: PhotonType,
     ) -> None:
+        """Append photon state arrays to storage for later photon mapping."""
         self.photon_storage.positions[photon_type].append(wrapper.positions.copy())
         self.photon_storage.directions[photon_type].append(wrapper.directions.copy())
         self.photon_storage.energies[photon_type].append(wrapper.energies.copy())
@@ -116,6 +130,7 @@ class Simulation:
             )
 
     def sample_photons(self, wrapper: PhotonWrapper, photon_type: PhotonType) -> None:
+        """Query the photon map via KDTree and accumulate energy into waveforms and heatmaps."""
         photon_map = self.photon_maps[photon_type]
 
         for sensor_position, sensor_direction, sensor_energy, sensor_time_step in zip(
@@ -203,6 +218,7 @@ class Simulation:
     # ========================================
 
     def evaluate_state(self, y_current: Array, y_next: Array) -> IntArray:
+        """Classify photons by position state (air, entering/exiting water, seafloor)."""
         states = np.full_like(
             y_current, PhotonPositionState.IN_AIR.value, dtype=np.int32
         )
@@ -228,6 +244,7 @@ class Simulation:
         return states
 
     def simulate_photon_step(self, wrapper: PhotonWrapper, *, forward: bool):
+        """Advance all photons by one time step and dispatch to interaction handlers."""
         next_positions = (
             wrapper.positions
             + wrapper.directions
@@ -361,14 +378,7 @@ class Simulation:
     def handle_enter(
         self, subset: PhotonWrapper, next_positions: Vector3Array, *, forward: bool
     ) -> PhotonWrapper:
-        """
-        Handle refraction or reflection at a flat water surface.
-
-        Args:
-            subset (PhotonWrapper): _description_
-            next_positions (Vector3Array): _description_
-            forward (bool): _description_
-        """
+        """Handle photon entry from air to water: Fresnel splitting and Snell refraction."""
 
         # Calculate intersection with sea surface
         step_vectors = next_positions - subset.positions
@@ -426,14 +436,7 @@ class Simulation:
     def handle_exit(
         self, subset: PhotonWrapper, next_positions: Vector3Array, *, forward: bool
     ) -> PhotonWrapper:
-        """
-        Handle refraction or reflection at a flat water surface.
-
-        Args:
-            subset (PhotonWrapper): _description_
-            next_positions (Vector3Array): _description_
-            forward (bool): _description_
-        """
+        """Handle photon exit from water to air: Fresnel reflection/transmission and refraction."""
 
         # Calculate intersection with sea surface
         step_vectors = next_positions - subset.positions
@@ -504,6 +507,7 @@ class Simulation:
     def handle_seafloor(
         self, subset: PhotonWrapper, next_positions: Vector3Array, *, forward: bool
     ) -> PhotonWrapper:
+        """Handle Lambertian reflection at the seafloor boundary."""
         # Calculate intersection with seafloor
         step_vectors = next_positions - subset.positions
         with np.errstate(divide="ignore", invalid="ignore"):

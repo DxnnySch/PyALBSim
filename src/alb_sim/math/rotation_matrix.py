@@ -8,11 +8,15 @@ def orthonormal_from_z_batch(v):
     """
     Vectorized construction of rotation matrices to align local +z with incoming_dirs.
 
-    Parameters:
-        v: (N, 3) array of target direction vectors
+    Parameters
+    ----------
+    v : ndarray of shape (N, 3)
+        Target direction vectors.
 
-    Returns:
-        rotation_matrices: (N, 3, 3) array of rotation matrices.
+    Returns
+    -------
+    Matrix3Array
+        Rotation matrices that align +z with each vector in ``v``.
     """
     w = v / np.linalg.norm(v, axis=1, keepdims=True)  # (N, 3)
 
@@ -43,8 +47,8 @@ def rotation_from_z_batch(v: Vector3Array) -> Matrix3Array:
 
     Returns
     -------
-    R : ndarray, shape (N, 3, 3)
-        Rotation matrices
+    Matrix3Array
+        Rotation matrices of shape (N, 3, 3).
     """
     v = np.asarray(v, dtype=float)
     num_samples = v.shape[0]

@@ -57,14 +57,23 @@ def _radial_histogram_from_heatmap(
     n_bins: int,
 ) -> tuple:
     """
-    Compute a 1-D radial energy histogram by binning a 2-D heatmap into rings.
-    Args:
-        heatmap: 2D energy array, shape (N, N), coordinates span [-extent, extent]
-        extent: Half-width of the heatmap in metres
-        center_offset: (x, z) offset of the laser-axis footprint within the heatmap
-        n_bins: Number of radial bins
-    Returns:
-        (r_centers, r_edges, r_hist, max_radius)
+    Compute a 1D radial energy histogram by binning a 2D heatmap into rings.
+
+    Parameters
+    ----------
+    heatmap : ndarray, shape (N, N)
+        2D energy array with coordinates spanning ``[-extent, extent]``.
+    extent : float
+        Half-width of the heatmap in metres.
+    center_offset : tuple
+        Offset of the laser-axis footprint within the heatmap (x, z).
+    n_bins : int
+        Number of radial bins.
+
+    Returns
+    -------
+    tuple
+        ``(r_centers, r_edges, r_hist, max_radius)``.
     """
     num_bins = heatmap.shape[0]
     edges = np.linspace(-extent, extent, num_bins + 1)
@@ -92,16 +101,27 @@ def _radial_histogram_from_photons(
     photon_types: Optional[list] = None,
 ) -> tuple:
     """
-    Compute a 1-D radial energy histogram from individual photon positions.
-    Args:
-        photon_maps_data: Dict mapping PhotonType -> PhotonMapData
-        interaction_type: "water" or "seafloor"
-        center_xz: (x, z) world coordinate of the laser-axis footprint
-        max_radius: Upper edge of the last radial bin
-        n_bins: Number of radial bins
-        photon_types: Optional list of PhotonType values to include. If None, all types.
-    Returns:
-        (r_centers, r_edges, r_hist, max_radius)
+    Compute a 1D radial energy histogram from individual photon positions.
+
+    Parameters
+    ----------
+    photon_maps_data : dict
+        Mapping from PhotonType to PhotonMapData.
+    interaction_type : str
+        ``"water"`` for first-water interactions or ``"seafloor"`` for bottom hits.
+    center_xz : tuple
+        Laser-axis footprint position (x, z) in world coordinates.
+    max_radius : float
+        Upper edge of the last radial bin.
+    n_bins : int
+        Number of radial bins.
+    photon_types : list, optional
+        Optional subset of PhotonType values to include.
+
+    Returns
+    -------
+    tuple
+        ``(r_centers, r_edges, r_hist, max_radius)``.
     """
     positions, energies = collect_interaction_data_from_photon_map(
         photon_maps_data, interaction_type, photon_types
@@ -132,11 +152,7 @@ def _add_percentile_markers(
     cumulative_pct: np.ndarray,
     percentiles: tuple = (50, 90, 95, 99, 100),
 ):
-    """
-    Draw dashed red crosshairs at each requested percentile of the cumulative curve
-    and annotate with the radius value.  Uses linear interpolation so the vertical
-    line lands exactly on the curve.
-    """
+    """Annotate cumulative curves with percentile crosshairs and radius labels."""
     for pct in percentiles:
         r_at_pct = float(np.interp(pct, cumulative_pct, r_centers))
         ax.axhline(pct, color="red", linestyle="--", alpha=0.5, linewidth=0.8)
@@ -158,8 +174,14 @@ def _add_percentile_markers(
 
 def _plot_single_radial_figure(panels: list, title: str):
     """
-    Draw a 2×2 figure: top row = energy bars, bottom row = cumulative %.
-    panels: list of (r_centers, r_edges, r_hist, label) for each column.
+    Draw a 2×2 figure of radial energy histograms and cumulative curves.
+
+    Parameters
+    ----------
+    panels : list
+        List of ``(r_centers, r_edges, r_hist, label)`` tuples, one per column.
+    title : str
+        Figure title.
     """
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 
@@ -201,9 +223,12 @@ def _plot_combined_radial_figure(
     seafloor: tuple,
 ):
     """
-    Draw a 2×2 figure overlaying absolute energy histograms and cumulative
-    curves of detected vs. outgoing energy for each surface.
-    water / seafloor: (r_centers, r_edges, det_hist, out_hist)
+    Draw a 2×2 figure comparing outgoing vs detected radial energy distributions.
+
+    Parameters
+    ----------
+    water, seafloor : tuple
+        Each a tuple ``(r_centers, r_edges, det_hist, out_hist)`` for the surface.
     """
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 
@@ -276,15 +301,25 @@ def _slice_from_heatmap(
     axis: str,
 ) -> tuple:
     """
-    Project a 2-D heatmap onto one spatial axis.
-    Args:
-        heatmap: 2D energy array, shape (N, N), x=axis-0, z=axis-1
-        extent: Half-width of the heatmap in metres
-        center_offset: (x, z) offset of the laser footprint within the heatmap
-        n_bins: Number of output bins
-        axis: "x" or "z"
-    Returns:
-        (bin_centers, bin_edges, hist_1d)
+    Project a 2D heatmap onto one spatial axis.
+
+    Parameters
+    ----------
+    heatmap : ndarray
+        2D energy array with x along axis-0 and z along axis-1.
+    extent : float
+        Half-width of the heatmap in metres.
+    center_offset : tuple
+        Offset of the laser footprint within the heatmap (x, z).
+    n_bins : int
+        Number of output bins.
+    axis : {"x", "z"}
+        Axis along which to project.
+
+    Returns
+    -------
+    tuple
+        ``(bin_centers, bin_edges, hist_1d)``.
     """
     num_bins = heatmap.shape[0]
     pixel_edges = np.linspace(-extent, extent, num_bins + 1)
@@ -317,16 +352,28 @@ def _slice_from_photons(
 ) -> tuple:
     """
     Project photon interaction positions onto one spatial axis.
-    Args:
-        photon_maps_data: Dict mapping PhotonType -> PhotonMapData
-        interaction_type: "water" or "seafloor"
-        center_xz: (x, z) world coordinate of the laser footprint
-        extent: Half-width of the binning range
-        n_bins: Number of output bins
-        axis: "x" or "z"
-        photon_types: Optional filter for specific photon types
-    Returns:
-        (bin_centers, bin_edges, hist_1d)
+
+    Parameters
+    ----------
+    photon_maps_data : dict
+        Mapping from PhotonType to PhotonMapData.
+    interaction_type : str
+        ``"water"`` or ``"seafloor"``.
+    center_xz : tuple
+        Laser-footprint position (x, z) in world coordinates.
+    extent : float
+        Half-width of the binning range.
+    n_bins : int
+        Number of output bins.
+    axis : {"x", "z"}
+        Axis along which to project.
+    photon_types : list, optional
+        Optional subset of PhotonType values to include.
+
+    Returns
+    -------
+    tuple
+        ``(bin_centers, bin_edges, hist_1d)``.
     """
     positions, energies = collect_interaction_data_from_photon_map(
         photon_maps_data, interaction_type, photon_types
@@ -353,10 +400,14 @@ def _plot_directional_figure(
     title: str,
 ):
     """
-    Draw a 2×2 figure with X vs Z directional slices overlaid.
-    Top row: energy histograms.  Bottom row: cumulative %.
-    Left column: water surface.  Right column: seafloor.
-    Each *_x / *_z tuple: (bin_centers, bin_edges, hist_1d)
+    Draw a 2×2 figure comparing X vs Z directional slices for water and seafloor.
+
+    Parameters
+    ----------
+    water_x, water_z, seafloor_x, seafloor_z : tuple
+        Each a tuple ``(bin_centers, bin_edges, hist_1d)``.
+    title : str
+        Figure title.
     """
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 
@@ -449,20 +500,27 @@ def plot_radial_energy_histograms(
     n_bins: int = 100,
 ):
     """
-    Plot three figures showing radial energy distribution by radius from the laser axis:
-      Figure 1 - Detected energy (photons that reached the sensor, from sampled_heatmaps)
-      Figure 2 - Outgoing energy (all tracked photons, from photon_maps_data)
-      Figure 3 - Comparison: outgoing vs detected (detected normalized by n_backward_total)
-    Both water-surface and seafloor panels appear side by side in each figure.
-    Each figure has a top row (energy per radial ring) and a bottom row (cumulative %)
-    with 50 / 90 / 95 / 99 / 100th percentile markers.
-    Args:
-        sampled_heatmaps: Pre-computed detected-energy heatmaps (SampledHeatmaps)
-        photon_maps_data: All stored photon data from the forward pass
-        water_center_xz: (x, z) world coordinate of the water surface laser intersection
-        seafloor_center_xz: (x, z) world coordinate of the seafloor laser footprint
-        n_backward_total: Total number of backward photons simulated (for normalization)
-        n_bins: Number of radial bins (shared across all histograms for comparability)
+    Plot multiple figures summarising radial energy distributions from photon maps.
+
+    Figures include detected vs outgoing energy by radius and directional slices
+    for both water surface and seafloor interactions.
+
+    Parameters
+    ----------
+    sampled_heatmaps : SampledHeatmapsResult
+        Pre-computed detected-energy heatmaps.
+    photon_maps_data : dict
+        All stored photon data from the forward pass.
+    heatmap_config : HeatmapConfig
+        Heatmap configuration (extents, etc.).
+    water_center_xz : tuple
+        Water surface laser intersection (x, z) in world coordinates.
+    seafloor_center_xz : tuple
+        Seafloor laser footprint (x, z) in world coordinates.
+    n_backward_total : int
+        Total number of backward photons simulated (for normalisation).
+    n_bins : int, optional
+        Number of radial bins (shared across histograms).
     """
 
     # ── Detected (from pre-computed heatmaps) ─────────────────────────────

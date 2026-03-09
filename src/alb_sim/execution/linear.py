@@ -15,6 +15,18 @@ from alb_sim.utils.types import Array
 
 
 def linear_forward(simulation: Simulation, photons_per_batch: int, batches: int):
+    """
+    Run the forward (emission) pass in a single process.
+
+    Parameters
+    ----------
+    simulation : Simulation
+        Simulation instance to advance.
+    photons_per_batch : int
+        Number of photons simulated in each batch.
+    batches : int
+        Number of batches to run.
+    """
     print("Starting forwards pass")
     start_time = perf_counter()
 
@@ -33,6 +45,18 @@ def linear_forward(simulation: Simulation, photons_per_batch: int, batches: int)
 
 
 def linear_backward(simulation: Simulation, photons_per_batch: int, batches: int):
+    """
+    Run the backward (sensor) pass in a single process.
+
+    Parameters
+    ----------
+    simulation : Simulation
+        Simulation instance to advance.
+    photons_per_batch : int
+        Number of photons simulated in each batch.
+    batches : int
+        Number of batches to run.
+    """
     print("Starting backwards pass")
     start_time = perf_counter()
 
@@ -55,6 +79,23 @@ def run_linear(
     run_config: RunConfig,
     rng: Optional[np.random.Generator] = None,
 ) -> dict[PhotonType, Array]:
+    """
+    Execute a full single-process forward and backward simulation.
+
+    Parameters
+    ----------
+    simulation_config : SimulationConfig
+        Configuration describing scene, water, laser, sensor, and outputs.
+    run_config : RunConfig
+        Execution parameters such as batch sizes and number of batches.
+    rng : numpy.random.Generator, optional
+        Random number generator; if omitted a new generator is created.
+
+    Returns
+    -------
+    dict[PhotonType, Array]
+        Return waveform arrays for each photon type.
+    """
     if rng is None:
         rng = np.random.default_rng(secrets.randbits(128))
 

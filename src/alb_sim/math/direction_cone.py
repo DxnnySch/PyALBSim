@@ -8,7 +8,23 @@ def sample_directions_in_cone_uniform(
     center_dir: Vector3, cone_angle: float, num_samples: int, rng: np.random.Generator
 ) -> Vector3Array:
     """
-    Generate num_samples unit direction vectors within a cone defined by center_dir and cone_angle (in radians).
+    Sample unit direction vectors uniformly within a cone.
+
+    Parameters
+    ----------
+    center_dir : array_like, shape (3,)
+        Normalised cone axis direction.
+    cone_angle : float
+        Cone half-angle in radians.
+    num_samples : int
+        Number of direction samples to generate.
+    rng : numpy.random.Generator
+        Random number generator used for sampling.
+
+    Returns
+    -------
+    Vector3Array
+        Array of shape (num_samples, 3) with unit direction vectors.
     """
     # center_dir must be normalized
 
@@ -38,20 +54,26 @@ def sample_directions_in_cone_gaussian(
     center_dir: Vector3, cone_angle: float, num_samples: int, rng: np.random.Generator
 ) -> Vector3Array:
     """
-    Generate num_samples unit direction vectors within a cone with Gaussian-weighted
-    distribution centered on center_dir, truncated at cone_angle.
+    Sample unit direction vectors in a cone with Gaussian-weighted angles.
 
     The angular distribution follows a truncated Rayleigh profile (2D Gaussian in
-    transverse space), with 100% of samples guaranteed to fall within cone_angle.
+    transverse space) and is hard-clipped at ``cone_angle``.
 
-    Args:
-        center_dir: Normalized direction vector for cone axis
-        cone_angle: Maximum divergence half-angle in radians (hard cutoff)
-        num_samples: Number of direction samples to generate
-        rng: NumPy random generator
+    Parameters
+    ----------
+    center_dir : array_like, shape (3,)
+        Normalised cone axis direction.
+    cone_angle : float
+        Maximum divergence half-angle in radians.
+    num_samples : int
+        Number of direction samples to generate.
+    rng : numpy.random.Generator
+        Random number generator used for sampling.
 
-    Returns:
-        Array of shape (num_samples, 3) with unit direction vectors
+    Returns
+    -------
+    Vector3Array
+        Array of shape (num_samples, 3) with unit direction vectors.
     """
     # Use sigma such that cone_angle ≈ 3σ (99.7% would naturally fall within)
     # This gives a nice Gaussian shape while keeping the truncation minimal

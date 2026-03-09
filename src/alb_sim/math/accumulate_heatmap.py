@@ -14,13 +14,20 @@ def accumulate_to_heatmap(
     """
     Accumulate energy values into a 2D histogram based on x-z positions.
 
-    Args:
-        positions: (N, 3) array of positions
-        energies: (N,) array of energy values
-        heatmap: (N, N) array to accumulate into
-        center: (3,) center position of heatmap
-        extent: Half-width of the heatmap extent
-        bin_size: Size of each bin
+    Parameters
+    ----------
+    positions : ndarray of shape (N, 3)
+        Photon interaction positions.
+    energies : ndarray of shape (N,)
+        Energy associated with each interaction.
+    heatmap : ndarray of shape (B, B)
+        2D heatmap array to accumulate into.
+    center : ndarray of shape (3,)
+        Heatmap centre position in world coordinates.
+    extent : float
+        Half-width of the heatmap extent around the centre.
+    bin_size : float
+        Size of each heatmap bin in world units.
     """
     # Filter out NaN positions
     valid_mask = ~np.isnan(positions[:, 0])
@@ -65,7 +72,25 @@ def accumulate_scatter_radius_heatmap(
 ) -> None:
     """
     Accumulate photon counts into a 2D histogram of (surface_radius, seafloor_radius).
-    Not energy-weighted — each photon contributes 1 count.
+
+    Each valid photon contributes a count of 1; this is not energy-weighted.
+
+    Parameters
+    ----------
+    scatter_radius_heatmap : ndarray of shape (B, B)
+        2D histogram to accumulate photon counts into.
+    surface_positions : ndarray of shape (N, 3)
+        First water interaction positions at the surface.
+    seafloor_positions : ndarray of shape (N, 3)
+        Corresponding photon interaction positions at the seafloor.
+    water_surface_center : ndarray of shape (3,)
+        Centre point used for computing surface radii.
+    sea_floor_center : ndarray of shape (3,)
+        Centre point used for computing seafloor radii.
+    water_surface_extent : float
+        Maximum radius on the surface represented in the heatmap.
+    sea_floor_extent : float
+        Maximum radius on the seafloor represented in the heatmap.
     """
     valid_mask = ~np.isnan(surface_positions[:, 0])
     if not np.any(valid_mask):

@@ -8,6 +8,16 @@ from alb_sim.utils.types import MatrixN
 def plot_scatter_radius_heatmap(
     scatter_radius_heatmap: MatrixN, heatmap_config: HeatmapConfig
 ) -> None:
+    """
+    Visualise the scatter-radius correlation heatmap.
+
+    Parameters
+    ----------
+    scatter_radius_heatmap : MatrixN
+        2D histogram of surface radius vs seafloor radius.
+    heatmap_config : HeatmapConfig
+        Configuration providing water and seafloor extents.
+    """
     water_ext = heatmap_config.water_extent
     seafloor_ext = heatmap_config.seafloor_extent
 

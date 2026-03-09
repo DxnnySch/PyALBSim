@@ -9,6 +9,21 @@ SCATTER_DIVISIONS = 18000
 def calculate_phase_function(
     junge_slope: float, refractive_index_ratio: float
 ) -> tuple[Array, Array, Array]:
+    """
+    Compute the Fournier-Forand phase function and its CDF.
+
+    Parameters
+    ----------
+    junge_slope : float
+        Slope of the particle size distribution.
+    refractive_index_ratio : float
+        Particle-to-water refractive index ratio.
+
+    Returns
+    -------
+    tuple of (Array, Array, Array)
+        Scattering angles, phase function values, and normalised CDF.
+    """
     theta = np.linspace(1e-6, np.pi, SCATTER_DIVISIONS, dtype=np.float64)
 
     v = (3 - junge_slope) / 2
@@ -36,6 +51,21 @@ def calculate_phase_function(
 def calculate_phase_function_matlab(
     junge_slope: float, refractive_index_ratio: float
 ) -> tuple[Array, Array, Array]:
+    """
+    Alternative Fournier-Forand phase function implementation mirroring MATLAB code.
+
+    Parameters
+    ----------
+    junge_slope : float
+        Slope of the particle size distribution.
+    refractive_index_ratio : float
+        Particle-to-water refractive index ratio.
+
+    Returns
+    -------
+    tuple of (Array, Array, Array)
+        Scattering angles, phase function values, and normalised CDF.
+    """
     theta = np.linspace(1e-6, np.pi, SCATTER_DIVISIONS, dtype=np.float64)
 
     v = (3 - junge_slope) / 2
@@ -57,6 +87,21 @@ def calculate_phase_function_matlab(
 
 # https://www.oceanopticsbook.info/view/scattering/the-fournier-forand-phase-function
 def calculate_backscatter_fraction(junge_slope: float, refractive_index_ratio: float):
+    """
+    Compute the integrated backscatter fraction for a Fournier-Forand phase function.
+
+    Parameters
+    ----------
+    junge_slope : float
+        Slope of the particle size distribution.
+    refractive_index_ratio : float
+        Particle-to-water refractive index ratio.
+
+    Returns
+    -------
+    float
+        Backscatter fraction (dimensionless).
+    """
     v = (3 - junge_slope) / 2
     delta_90 = (4 / (3 * (refractive_index_ratio - 1) ** 2)) * np.sin(np.pi / 4) ** 2
 

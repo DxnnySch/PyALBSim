@@ -8,6 +8,7 @@ from alb_sim.utils.types import Array, Vector3Array
 
 class PhotonStorage:
     def __init__(self):
+        """In-memory container for photon interaction arrays grouped by type."""
         self.positions: defaultdict[PhotonType, list[Vector3Array]] = defaultdict(list)
         self.directions: defaultdict[PhotonType, list[Vector3Array]] = defaultdict(list)
         self.energies: defaultdict[PhotonType, list[Array]] = defaultdict(list)
@@ -29,6 +30,26 @@ class PhotonStorage:
         first_water_interaction,
         seafloor_interaction,
     ):
+        """
+        Append a batch of photon interactions to storage.
+
+        Parameters
+        ----------
+        photon_type : PhotonType
+            Category of photon interaction being stored.
+        positions : Vector3Array
+            Photon positions for this batch.
+        directions : Vector3Array
+            Photon directions for this batch.
+        energies : Array
+            Photon energies for this batch.
+        times : Array
+            Photon time indices for this batch.
+        first_water_interaction : Vector3Array
+            First water interaction points for this batch.
+        seafloor_interaction : Vector3Array
+            Seafloor interaction points for this batch.
+        """
         self.positions[photon_type].append(positions)
         self.directions[photon_type].append(directions)
         self.energies[photon_type].append(energies)

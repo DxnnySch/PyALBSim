@@ -21,12 +21,15 @@ def ggx_distribution(n_dot_h: Vector3Array, alpha: float) -> Array:
 
     Parameters
     ----------
-    n_dot_h : Cosine of half-vector between wi and wo (unit vector)
-    alpha : Surface roughness parameter (alpha = roughness^2 typically)
+    n_dot_h : Array
+        Cosine between surface normal and half-vector.
+    alpha : float
+        Surface roughness parameter (typically ``alpha = roughness**2``).
 
     Returns
     -------
-    D : Microfacet distribution value
+    Array
+        Microfacet distribution values.
     """
 
     alpha2 = alpha * alpha
@@ -42,12 +45,15 @@ def smith_ggx_g1(n_dot_v: Union[Array, float], alpha: float):
 
     Parameters
     ----------
-    n_dot_v : Cosine between normal and direction (wi or wo)
-    alpha : Surface roughness parameter
+    n_dot_v : Array or float
+        Cosine between normal and direction (incident or outgoing).
+    alpha : float
+        Surface roughness parameter.
 
     Returns
     -------
-    G1 : Masking or shadowing term
+    Array or float
+        Masking or shadowing term.
     """
     # substitute lambda_ggx function into G1, substitute a into G1
     # alpha2 = alpha * alpha
@@ -67,13 +73,17 @@ def smith_ggx_g(n_dot_wi: Array, n_dot_wo: float, alpha: float):
 
     Parameters
     ----------
-    n_dot_wi : Cosines of incident directions (pointing away from surface) and normal
-    n_dot_wo : Cosine of outgoing direction (pointing away from surface) and normal
-    alpha : Surface roughness parameter
+    n_dot_wi : Array
+        Cosines between normal and incident directions.
+    n_dot_wo : float
+        Cosine between normal and outgoing direction.
+    alpha : float
+        Surface roughness parameter.
 
     Returns
     -------
-    G : Geometry attenuation term
+    Array
+        Geometry attenuation term.
     """
 
     g1_i = smith_ggx_g1(n_dot_wi, alpha)
@@ -147,7 +157,29 @@ def microfacet_transmitted_energy(
     base_reflectance: float,
 ) -> Array:
     """
-    Microfacet BTDF (GGX), Walter et al. style
+    Compute transmitted energy using a GGX microfacet BTDF (Walter et al.).
+
+    Parameters
+    ----------
+    incident_direction : Vector3Array
+        Incident directions (pointing towards the interface).
+    outgoing_direction : Vector3Array
+        Outgoing directions (pointing away from the interface).
+    normal : Vector3
+        Surface normal.
+    roughness : float
+        Surface roughness in [0, 1].
+    eta_i : float
+        Refractive index of the incident medium.
+    eta_o : float
+        Refractive index of the transmitted medium.
+    base_reflectance : float
+        Reflectance at normal incidence.
+
+    Returns
+    -------
+    Array
+        Transmitted energy / BTDF values per ray.
     """
 
     wi = normalize_batch(-incident_direction)

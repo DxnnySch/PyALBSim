@@ -25,15 +25,60 @@ def length_batch(v_batch: Vector3Array) -> Array:
 
 
 def dot_batch_single(v_batch: Vector3Array, v: Vector3) -> Array:
+    """
+    Compute dot products between a batch of vectors and a single vector.
+
+    Parameters
+    ----------
+    v_batch : ndarray of shape (N, 3)
+        Batch of input vectors.
+    v : ndarray of shape (3,)
+        Single vector to dot with each row of ``v_batch``.
+
+    Returns
+    -------
+    Array
+        Dot products for each row in ``v_batch``.
+    """
     return np.einsum("ij,j->i", v_batch, v)
 
 
 def dot_batch_batch(a_batch: Vector3Array, b_batch: Vector3Array) -> Array:
+    """
+    Compute elementwise dot products for two batches of vectors.
+
+    Parameters
+    ----------
+    a_batch : ndarray of shape (N, 3)
+        First batch of vectors.
+    b_batch : ndarray of shape (N, 3)
+        Second batch of vectors.
+
+    Returns
+    -------
+    Array
+        Dot products for each pair of rows.
+    """
     return np.einsum("ij,ij->i", a_batch, b_batch)
 
 
 def random_unit_vector_batch(
     num_samples: int, rng: np.random.Generator
 ) -> Vector3Array:
+    """
+    Sample random unit vectors with an isotropic distribution.
+
+    Parameters
+    ----------
+    num_samples : int
+        Number of unit vectors to generate.
+    rng : numpy.random.Generator
+        Random number generator used for sampling.
+
+    Returns
+    -------
+    Vector3Array
+        Array of shape (num_samples, 3) containing unit vectors.
+    """
     v = rng.normal(size=(num_samples, 3)).astype(np.float32)
     return normalize_batch(v).astype(np.float32)

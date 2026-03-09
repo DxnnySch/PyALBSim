@@ -11,13 +11,21 @@ def collect_interaction_data_from_photon_map(
     photon_types: Optional[list] = None,
 ) -> tuple:
     """
-    Collect positions and energies for a given interaction type, filtering NaN values.
-    Args:
-        photon_maps_data: Dict mapping PhotonType -> PhotonMapData
-        interaction_type: "water" for first_water_interaction, "seafloor" for seafloor_interaction
-        photon_types: Optional list of PhotonType values to include. If None, all types are used.
-    Returns:
-        (positions, energies) as concatenated arrays, or empty arrays if no valid data.
+    Collect positions and energies for a given interaction type, filtering NaNs.
+
+    Parameters
+    ----------
+    photon_maps_data : dict
+        Mapping from PhotonType to PhotonMapData.
+    interaction_type : str
+        ``"water"`` for first-water interactions or ``"seafloor"`` for bottom hits.
+    photon_types : list, optional
+        Optional subset of PhotonType values to include.
+
+    Returns
+    -------
+    tuple
+        Concatenated ``(positions, energies)`` arrays, or empty arrays if none.
     """
     all_positions = []
     all_energies = []
@@ -48,18 +56,29 @@ def interactive_photon_map_interaction_heatmap(
     photon_types: Optional[list] = None,
 ):
     """
-    Interactive heatmap of photon interaction positions with bin-size and extent sliders.
-    Args:
-        photon_maps_data: Dict mapping PhotonType -> PhotonMapData
-        center_xz: (x, z) world coordinate to measure positions from (laser footprint center)
-        interaction_type: "water" or "seafloor"
-        initial_bin_size: Starting bin size in metres
-        initial_extent_radius: Starting half-width of the displayed region in metres
-        energy_weighted: If True, weight bins by photon energy
-        photon_types: Optional list of PhotonType values to include. If None, all types.
-    Returns:
-        Matplotlib widget references (slider_bin, slider_extent, button_reset) to
-        prevent garbage collection.
+    Show an interactive heatmap of photon interaction positions.
+
+    Parameters
+    ----------
+    photon_maps_data : dict
+        Mapping from PhotonType to PhotonMapData.
+    center_xz : tuple
+        World (x, z) coordinate of the laser footprint centre.
+    interaction_type : str, optional
+        ``"water"`` or ``"seafloor"``.
+    initial_bin_size : float, optional
+        Initial bin size in metres.
+    initial_extent_radius : float, optional
+        Initial half-width of the displayed region in metres.
+    energy_weighted : bool, optional
+        If True, weight bins by photon energy; otherwise count photons.
+    photon_types : list, optional
+        Optional subset of PhotonType values to include.
+
+    Returns
+    -------
+    tuple
+        Matplotlib widget references ``(slider_bin, slider_extent, button_reset)``.
     """
     positions, energies = collect_interaction_data_from_photon_map(
         photon_maps_data, interaction_type, photon_types

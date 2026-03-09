@@ -8,6 +8,19 @@ from alb_sim.photon_mapping.photon_type import PhotonType
 def build_photon_map_data(
     photon_storage: PhotonStorage,
 ) -> dict[PhotonType, PhotonMapData]:
+    """
+    Convert a PhotonStorage into dense PhotonMapData arrays per photon type.
+
+    Parameters
+    ----------
+    photon_storage : PhotonStorage
+        In-memory photon interaction storage.
+
+    Returns
+    -------
+    dict[PhotonType, PhotonMapData]
+        Mapping from photon type to concatenated photon map data.
+    """
     maps = {}
 
     for photon_type in photon_storage.positions:

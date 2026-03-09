@@ -11,6 +11,8 @@ from alb_sim.config.water import WaterConfig
 
 @dataclass(frozen=True)
 class SimulationConfig:
+    """Master configuration aggregating all sub-configs for a simulation run."""
+
     sample_multiplier: int = field(
         default=10,
         metadata={

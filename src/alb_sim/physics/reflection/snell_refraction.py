@@ -10,6 +10,25 @@ def calculate_refraction_direction(
     refractive_index_1: float,
     refractive_index_2: float,
 ) -> tuple[Vector3Array, BoolArray]:
+    """
+    Compute refracted directions using Snell's law for a batch of rays.
+
+    Parameters
+    ----------
+    incoming_directions : Vector3Array
+        Incident ray directions (pointing towards the interface).
+    normal : Vector3
+        Surface normal vector at the interface.
+    refractive_index_1 : float
+        Refractive index of the incident medium.
+    refractive_index_2 : float
+        Refractive index of the transmitted medium.
+
+    Returns
+    -------
+    tuple[Vector3Array, BoolArray]
+        Refracted ray directions and a mask indicating total internal reflection.
+    """
     eta = refractive_index_1 / refractive_index_2
 
     cos_i = np.clip(dot_batch_single(-incoming_directions, normal), -1.0, 1.0)

@@ -3,6 +3,8 @@ from dataclasses import dataclass, field
 
 @dataclass
 class RunConfig:
+    """Execution parameters controlling batch sizes and parallelism."""
+
     photons_per_batch_forward: int = field(
         default=10_000,
         metadata={

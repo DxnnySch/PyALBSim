@@ -22,6 +22,19 @@ from alb_sim.utils.types import Array
 
 
 def merge_results(results: list[dict]):
+    """
+    Sum waveform results from multiple worker processes.
+
+    Parameters
+    ----------
+    results : list of dict
+        Per-worker dictionaries mapping PhotonType to waveform arrays.
+
+    Returns
+    -------
+    dict
+        Dictionary mapping PhotonType to merged waveform arrays.
+    """
     merged = defaultdict(list)
 
     for result in results:
@@ -35,6 +48,19 @@ def merge_results(results: list[dict]):
 # Forward worker
 # ==============================
 def forward_worker(args: tuple[SimulationConfig, RunConfig, Union[int, None]]):
+    """
+    Worker function for a single forward batch.
+
+    Parameters
+    ----------
+    args : tuple
+        Tuple of (simulation_config, run_config, seed).
+
+    Returns
+    -------
+    tuple
+        PhotonStorage, elapsed time in seconds, and optional scatter radius heatmap.
+    """
     start = perf_counter()
     config, run_config, seed = args
     if seed is None:
@@ -66,6 +92,19 @@ def backward_worker_init(shared_photon_maps_data: dict[PhotonType, PhotonMapData
 # Backward worker batch
 # ==============================
 def backward_worker_batch(args: tuple[SimulationConfig, RunConfig, Union[int, None]]):
+    """
+    Worker function for a single backward batch.
+
+    Parameters
+    ----------
+    args : tuple
+        Tuple of (simulation_config, run_config, seed).
+
+    Returns
+    -------
+    tuple
+        Waveform dictionary, elapsed time in seconds, and optional heatmaps.
+    """
     start = perf_counter()
     config, run_config, seed = args
     if seed is None:
@@ -94,6 +133,29 @@ def backward_worker_batch(args: tuple[SimulationConfig, RunConfig, Union[int, No
 # Progress helper
 # ==============================
 def run_with_progress(pool, worker, args_list, label, num_batches, num_processes):
+    """
+    Execute tasks in a pool while printing simple progress and ETA information.
+
+    Parameters
+    ----------
+    pool
+        Multiprocessing pool used to execute work.
+    worker : callable
+        Worker function taking a single args tuple.
+    args_list : list
+        Arguments passed to the worker for each task.
+    label : str
+        Human-readable label for the progress messages.
+    num_batches : int
+        Total number of logical batches.
+    num_processes : int
+        Number of worker processes used.
+
+    Returns
+    -------
+    tuple[list, list]
+        Collected worker results and any associated heatmap results.
+    """
     results = []
     heatmap_results = []
     times = []

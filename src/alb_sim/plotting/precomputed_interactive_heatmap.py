@@ -14,21 +14,29 @@ def interactive_precomputed_heatmap(
     crosshair_xz: tuple = (0.0, 0.0),
 ):
     """
-    Display a pre-computed 2D heatmap with bin-size and extent sliders.
+    Display an interactive view of a pre-computed 2D heatmap.
+
     The original high-resolution heatmap is re-binned on the fly by summing
     groups of native pixels, so the displayed bin size is always a multiple of
     the native resolution.
-    Args:
-        heatmap: 2D array of energy values, shape (bins, bins)
-        extent: Half-width of the square heatmap region in metres
-        title: Plot title
-        cmap: Matplotlib colormap name
-        crosshair_xz: (x, z) position of the crosshair within the heatmap (metres,
-            relative to the heatmap origin). Use (0, 0) for the water surface and
-            the seafloor footprint offset for the seafloor heatmap.
-    Returns:
-        Matplotlib widget references (slider_bin, slider_extent, button_reset)
-        to prevent garbage collection.
+
+    Parameters
+    ----------
+    heatmap : MatrixN
+        2D array of energy values, shape (bins, bins).
+    extent : float
+        Half-width of the square heatmap region in metres.
+    title : str
+        Plot title.
+    cmap : str, optional
+        Matplotlib colormap name.
+    crosshair_xz : tuple, optional
+        Crosshair position (x, z) within the heatmap, in metres.
+
+    Returns
+    -------
+    tuple
+        Matplotlib widget references ``(slider_bin, slider_extent, button_reset)``.
     """
     print(f"\n=== {title} ===")
     print(f"Heatmap shape: {heatmap.shape}")

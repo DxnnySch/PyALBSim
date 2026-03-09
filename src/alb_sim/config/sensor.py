@@ -3,6 +3,8 @@ from dataclasses import dataclass, field
 
 @dataclass(frozen=True)
 class SensorConfig:
+    """Configuration for the receiver telescope and waveform digitizer."""
+
     aperture_radius: float = field(
         default=0.1,
         metadata={
@@ -26,5 +28,6 @@ class SensorConfig:
     )
 
     def __post_init__(self):
+        """Validate that sensor parameters are within reasonable bounds."""
         if self.aperture_radius < 0:
             raise ValueError("Aperture radius must be positive")

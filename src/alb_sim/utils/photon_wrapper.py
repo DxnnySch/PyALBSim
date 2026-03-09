@@ -5,6 +5,7 @@ from alb_sim.utils.types import Array, Vector3Array
 
 @dataclass
 class PhotonWrapper:
+    """Lightweight container for photon state arrays with convenient slicing."""
     positions: Vector3Array
     directions: Vector3Array
     energies: Array
@@ -15,7 +16,7 @@ class PhotonWrapper:
     seafloor_interaction: Vector3Array
 
     def subset(self, idx):
-        """View-based slicing (no copies)."""
+        """Return a view-based subset of the photon arrays (no copies)."""
         return PhotonWrapper(
             positions=self.positions[idx],
             directions=self.directions[idx],
@@ -28,6 +29,7 @@ class PhotonWrapper:
         )
 
     def copy(self):
+        """Return a deep copy of the photon state arrays."""
         return PhotonWrapper(
             positions=self.positions.copy(),
             directions=self.directions.copy(),

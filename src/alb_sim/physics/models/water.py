@@ -19,6 +19,14 @@ from alb_sim.utils.types import Array, IntArray, Vector3, Vector3Array
 
 class FournierForandModel:
     def __init__(self, config: FournierForandConfig):
+        """
+        Precompute Fournier-Forand phase function and backscatter fraction.
+
+        Parameters
+        ----------
+        config : FournierForandConfig
+            Parameters controlling the particle size distribution and index contrast.
+        """
         self._config = config
         self.theta, self.pf, self.cdf = calculate_phase_function(
             self._config.junge_slope, self._config.refractive_index_ratio
@@ -35,6 +43,18 @@ class TurbidityLayerModel:
         laser_config: LaserConfig,
         scene_config: SceneConfig,
     ):
+        """
+        Vertically resolved optical model for a single turbidity layer.
+
+        Parameters
+        ----------
+        config : TurbidityLayerConfig
+            Depth-varying inherent optical properties for this layer.
+        laser_config : LaserConfig
+            Laser configuration used for wavelength-dependent calculations.
+        scene_config : SceneConfig
+            Scene geometry configuration (e.g. flying height).
+        """
         self._config = config
         self._laser_config = laser_config
         self._scene_config = scene_config
@@ -51,6 +71,7 @@ class TurbidityLayerModel:
         # self.single_scattering_albedo = self._calculate_single_scattering_albedo()
 
     def _is_constant_layer(self) -> bool:
+        """Return True if all optical properties are depth-independent scalars."""
         return all(
             isinstance(v, float)
             for v in (
@@ -62,6 +83,7 @@ class TurbidityLayerModel:
         )
 
     def _build_lidar_attenuation_lut(self):
+        """Construct a depth lookup table for lidar attenuation coefficient."""
         if self._is_constant_layer():
             self._constant_alpha = self._calculate_lidar_attenuation_coefficient(0.0)
             self.lidar_attenuation_coefficient_at = lambda z: self._constant_alpha
@@ -81,6 +103,7 @@ class TurbidityLayerModel:
     def _eval(
         self, value: NumberOrScalar, z_local: Union[Array, float]
     ) -> Union[Array, float]:
+        """Evaluate a scalar or depth profile at local depth ``z_local``."""
         if isinstance(value, float):
             return value
         return value.at(z_local / self._config.height)
@@ -94,6 +117,19 @@ class TurbidityLayerModel:
     def _calculate_lidar_attenuation_coefficient(
         self, z_local: Union[Array, float]
     ) -> Union[Array, float]:
+        """
+        Compute lidar attenuation coefficient at local depths.
+
+        Parameters
+        ----------
+        z_local : float or Array
+            Depth(s) within this layer measured from the layer top.
+
+        Returns
+        -------
+        float or Array
+            Lidar attenuation coefficient(s) at the requested depths.
+        """
         seawater_molecular_scattering_coefficient: Union[Array, float] = (
             (1 + 0.008027 * self._eval(self._config.salinity, z_local))
             * 0.00012
@@ -154,6 +190,7 @@ class TurbidityLayerModel:
     def refractive_index_at(self, z_local: float) -> float: ...
 
     def refractive_index_at(self, z_local: Union[Array, float]) -> Union[Array, float]:
+        """Return the refractive index at local depth ``z_local``."""
         return self._eval(self._config.refractive_index, z_local)
 
     @overload
@@ -163,6 +200,7 @@ class TurbidityLayerModel:
     def light_speed_at(self, z_local: float) -> float: ...
 
     def light_speed_at(self, z_local: Union[Array, float]) -> Union[Array, float]:
+        """Return the local light speed at depth ``z_local``."""
         return LIGHT_SPEED_AIR / self.refractive_index_at(z_local)
 
     @overload
@@ -174,6 +212,7 @@ class TurbidityLayerModel:
     def lidar_attenuation_coefficient_at(
         self, z_local: Union[Array, float]
     ) -> Union[Array, float]:
+        """Look up the lidar attenuation coefficient at depth ``z_local`` using the LUT."""
         z = np.asarray(z_local, dtype=np.float32)
 
         alpha = np.interp(
@@ -198,6 +237,7 @@ class TurbidityLayerModel:
     def single_scattering_albedo_at(
         self, z_local: Union[Array, float]
     ) -> Union[Array, float]:
+        """Return the single-scattering albedo at depth ``z_local``."""
         lidar_attenuation_coefficient = self.lidar_attenuation_coefficient_at(z_local)
         return (
             lidar_attenuation_coefficient
@@ -206,6 +246,7 @@ class TurbidityLayerModel:
 
     @property
     def height(self) -> float:
+        """Physical thickness of the turbidity layer in metres."""
         return self._config.height
 
 
@@ -213,6 +254,18 @@ class WaterModel:
     def __init__(
         self, config: WaterConfig, laser_config: LaserConfig, scene_config: SceneConfig
     ):
+        """
+        Multi-layer water column model aggregating turbidity layers.
+
+        Parameters
+        ----------
+        config : WaterConfig
+            Configuration describing the stack of turbidity layers.
+        laser_config : LaserConfig
+            Laser configuration used for spectral dependence.
+        scene_config : SceneConfig
+            Scene configuration used for depth conversions.
+        """
         self._config = config
         self._scene_config = scene_config
         self.layers = tuple(
@@ -222,6 +275,7 @@ class WaterModel:
         self._calculate_heights()
 
     def _calculate_heights(self):
+        """Precompute cumulative layer heights and total water depth."""
         self.layer_height_cumsum = np.cumsum([layer.height for layer in self.layers])
         self.depth = self.layer_height_cumsum[-1]
 
@@ -232,6 +286,7 @@ class WaterModel:
     def layer_index(self, depths: float) -> int: ...
 
     def layer_index(self, depths: Union[Array, float]) -> Union[IntArray, int]:
+        """Return the layer index for one or more depths below the surface."""
         idx = np.searchsorted(self.layer_height_cumsum, depths, side="right")
         return np.minimum(idx, len(self.layers) - 1).astype(np.int32)
 
@@ -242,6 +297,7 @@ class WaterModel:
     def layer_local_depth(self, depths: float) -> float: ...
 
     def layer_local_depth(self, depths: Union[Array, float]) -> Union[Array, float]:
+        """Convert absolute depths to depths measured from the top of each layer."""
         idx = self.layer_index(depths)
         z0 = np.concatenate(([0.0], self.layer_height_cumsum[:-1])).astype(np.float32)
         # print(idx, z0)
@@ -252,6 +308,19 @@ class WaterModel:
     #
 
     def velocities_by_depth(self, depths: Array) -> Array:
+        """
+        Compute propagation velocity for photons at given depths.
+
+        Parameters
+        ----------
+        depths : Array
+            Depths below the water surface (metres).
+
+        Returns
+        -------
+        Array
+            Propagation speeds in m/s at each depth.
+        """
         velocities = np.full_like(depths, EPSILON)
         idx = self.layer_index(depths)
         z_local = self.layer_local_depth(depths)
@@ -263,6 +332,19 @@ class WaterModel:
         return velocities
 
     def lidar_attenuation_coefficients_by_depth(self, depths: Array) -> Array:
+        """
+        Compute lidar attenuation coefficients at given depths.
+
+        Parameters
+        ----------
+        depths : Array
+            Depths below the water surface (metres).
+
+        Returns
+        -------
+        Array
+            Lidar attenuation coefficients per depth.
+        """
         lidar_attenuation_coefficients = np.full_like(depths, EPSILON, dtype=np.float32)
         idx = self.layer_index(depths)
         z_local = self.layer_local_depth(depths)
@@ -276,6 +358,19 @@ class WaterModel:
         return lidar_attenuation_coefficients
 
     def single_scattering_albedos_by_depth(self, depths: Array) -> Array:
+        """
+        Compute single-scattering albedos at given depths.
+
+        Parameters
+        ----------
+        depths : Array
+            Depths below the water surface (metres).
+
+        Returns
+        -------
+        Array
+            Single-scattering albedos per depth.
+        """
         single_scattering_albedos = np.full_like(depths, EPSILON, dtype=np.float32)
         idx = self.layer_index(depths)
         z_local = self.layer_local_depth(depths)
@@ -291,6 +386,23 @@ class WaterModel:
     def sample_scattering_directions_by_depth(
         self, depths: Array, incoming_directions: Vector3Array, rng: np.random.Generator
     ) -> Vector3Array:
+        """
+        Sample scattering directions for photons at given depths.
+
+        Parameters
+        ----------
+        depths : Array
+            Depths below the surface for each photon.
+        incoming_directions : Vector3Array
+            Directions before scattering.
+        rng : numpy.random.Generator
+            Random number generator used for sampling.
+
+        Returns
+        -------
+        Vector3Array
+            New directions after scattering.
+        """
         directions = np.empty_like(incoming_directions, dtype=np.float32)
         idx = self.layer_index(depths)
         for layer in range(len(self.layers)):
@@ -309,6 +421,23 @@ class WaterModel:
         photon_directions: Vector3Array,
         sensor_photon_direction: Vector3,
     ) -> Array:
+        """
+        Compute scattered energy from a single position towards the sensor.
+
+        Parameters
+        ----------
+        position : Vector3
+            Scatter position in world coordinates.
+        photon_directions : Vector3Array
+            Directions of photons leaving the scatter point.
+        sensor_photon_direction : Vector3
+            Backward ray direction from the sensor.
+
+        Returns
+        -------
+        Array
+            Energy weights per photon for the given geometry.
+        """
         photon_depth = (position[1] + self._scene_config.flying_height) * -1
         layer: TurbidityLayerModel = self.layers[self.layer_index(photon_depth)]
         return calculate_energy_batch(

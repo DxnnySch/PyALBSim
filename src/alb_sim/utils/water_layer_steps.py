@@ -6,6 +6,19 @@ from alb_sim.physics.models.simulation import SimulationModel
 
 
 def get_water_layer_steps(simulation_config: SimulationConfig) -> list[float]:
+    """
+    Compute approximate sample indices at which each water layer boundary is crossed.
+
+    Parameters
+    ----------
+    simulation_config : SimulationConfig
+        Configuration used to build the simulation model.
+
+    Returns
+    -------
+    list[float]
+        Cumulative sample indices (in waveform samples) for surface and each layer top.
+    """
     simulation_model = SimulationModel(simulation_config)
 
     laser_direction = simulation_model.laser.direction

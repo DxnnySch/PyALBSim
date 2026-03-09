@@ -21,20 +21,30 @@ def plot_stacked_waveform(
     show: bool = True,
 ):
     """
-    Plots a line diagram, shows it full-screen, and optionally saves it.
-    Optionally adds parameter info from a dictionary into the image.
-    Automatically calculates x-limits based on non-zero y-values if xlim is not provided.
+    Plot stacked waveforms per photon type with optional auto-zoom and annotations.
 
-    Args:
-        data (np.ndarray): A (N,) array of numbers.
-        title (str): Title of the plot.
-        xlabel (str): Label of the x-axis.
-        ylabel (str): Label of the y-axis.
-        xlim (tuple[int, int], optional): Range of x-values to display, e.g. (100, 200).
-        layer_lines (list[float], optional): x-values where the layers change.
-        params (dict, optional): Parameters to annotate in the plot.
-        save_path (str, optional): If given, the plot is saved to this path.
-        padding (int): Number of samples to add before and after non-zero region (default: 50).
+    Parameters
+    ----------
+    data : dict[PhotonType, Array]
+        Mapping from photon type to 1D waveform arrays.
+    title : str, optional
+        Plot title.
+    xlabel : str, optional
+        X-axis label.
+    ylabel : str, optional
+        Y-axis label.
+    xlim : tuple[int, int], optional
+        Explicit x-axis limits; if None, limits are inferred from non-zero samples.
+    layer_lines : list[float], optional
+        Optional vertical lines (e.g. water-layer boundaries) to overlay.
+    params : dict, optional
+        Dictionary of parameters to render as a text box inside the figure.
+    save_path : str, optional
+        If provided, file path to save the figure.
+    padding : int, optional
+        Number of samples for padding around the non-zero region when auto-zooming.
+    show : bool, optional
+        If True, display the figure interactively.
     """
 
     fig, ax = plt.subplots(figsize=(10, 6))

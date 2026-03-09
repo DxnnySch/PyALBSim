@@ -4,6 +4,7 @@ from tabulate import tabulate
 
 
 def describe_config(config_cls, tablefmt="github"):
+    """Return a formatted table of dataclass fields with defaults and metadata."""
     rows = []
 
     for f in fields(config_cls):
