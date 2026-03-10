@@ -1,12 +1,13 @@
+import time
+
 import numpy as np
 from scipy.spatial import KDTree
-import time
 
 # -----------------------------
 # Parameters
 # -----------------------------
-N_PHOTONS = 200_000   # photon map size
-N_SAMPLES = 10_000    # number of shading points
+N_PHOTONS = 200_000  # photon map size
+N_SAMPLES = 10_000  # number of shading points
 K = 1000
 DIM = 3
 DTYPE = np.float32
@@ -14,10 +15,10 @@ DTYPE = np.float32
 # -----------------------------
 # Generate fake data
 # -----------------------------
-np.random.seed(0)
+rng = np.random.default_rng(0)
 
-photon_positions = np.random.rand(N_PHOTONS, DIM).astype(DTYPE)
-sample_positions = np.random.rand(N_SAMPLES, DIM).astype(DTYPE)
+photon_positions = rng.random((N_PHOTONS, DIM)).astype(DTYPE)
+sample_positions = rng.random((N_SAMPLES, DIM)).astype(DTYPE)
 
 tree = KDTree(photon_positions)
 

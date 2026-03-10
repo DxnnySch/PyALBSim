@@ -6,7 +6,6 @@ from alb_sim.config.simulation import SimulationConfig
 from alb_sim.config.water import TurbidityLayerConfig, WaterConfig
 from alb_sim.physics.models.simulation import SimulationModel
 
-
 simulation_config = SimulationConfig(
     water=WaterConfig(
         layers=(
@@ -26,9 +25,7 @@ center_intersection = simulation_model.laser.direction * (
 
 num_photons = 10_000
 rng = np.random.default_rng(42)
-directions = simulation_model.sample_starting_direction(
-    num_photons, rng, forward=True
-)
+directions = simulation_model.sample_starting_direction(num_photons, rng, forward=True)
 
 y_distances = directions[:, 1]
 

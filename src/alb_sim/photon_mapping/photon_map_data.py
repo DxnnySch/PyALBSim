@@ -6,6 +6,7 @@ from alb_sim.utils.types import Array, Vector3Array
 @dataclass
 class PhotonMapData:
     """Photon interaction arrays used to build a photon map index."""
+
     positions: Vector3Array  # (N, 3)
     directions: Vector3Array  # (N, 3)
     energies: Array  # (N,)

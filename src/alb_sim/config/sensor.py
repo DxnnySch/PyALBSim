@@ -20,7 +20,7 @@ class SensorConfig:
         },
     )
     sample_rate: int = field(
-        default=int(5e9),  # 0.2 nanoseconds
+        default=int(2e9),  # 0.5 nanoseconds
         metadata={
             "unit": "Hz",
             "description": "Temporal resolution of simulated waveform",

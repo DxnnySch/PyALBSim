@@ -31,7 +31,7 @@ notebooks = [
     "ipympl"
 ]
 dev = [
-    "black",
+    "black[jupyter]",
     "ruff",
     "pre-commit",
     "mypy",

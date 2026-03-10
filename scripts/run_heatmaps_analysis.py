@@ -1,20 +1,25 @@
 import math
+
 import numpy as np
 
-from alb_sim.config.run import RunConfig
 from alb_sim.config.heatmap import HeatmapConfig
+from alb_sim.config.run import RunConfig
 from alb_sim.config.sea_floor import SeaFloorConfig
 from alb_sim.config.sensor import SensorConfig
-from alb_sim.config.water import TurbidityLayerConfig, WaterConfig
 from alb_sim.config.simulation import SimulationConfig
+from alb_sim.config.water import TurbidityLayerConfig, WaterConfig
 from alb_sim.execution.parallel import run_parallel
 from alb_sim.photon_mapping.photon_type import PhotonType
 from alb_sim.physics.models.simulation import SimulationModel
-from alb_sim.plotting.photon_map_interaction_interactive_heatmap import interactive_photon_map_interaction_heatmap
+from alb_sim.plotting.photon_map_interaction_interactive_heatmap import (
+    interactive_photon_map_interaction_heatmap,
+)
 from alb_sim.plotting.plot_radial_histogram import plot_radial_energy_histograms
 from alb_sim.plotting.plot_scatter_radius_heatmap import plot_scatter_radius_heatmap
 from alb_sim.plotting.plot_stacked_waveform import plot_stacked_waveform
-from alb_sim.plotting.precomputed_interactive_heatmap import interactive_precomputed_heatmap
+from alb_sim.plotting.precomputed_interactive_heatmap import (
+    interactive_precomputed_heatmap,
+)
 
 simulation_config = SimulationConfig(
     water=WaterConfig(
@@ -43,7 +48,9 @@ run_config = RunConfig(
 
 simulation_model = SimulationModel(simulation_config)
 
-waveform, photon_maps_data, sampled_heatmaps = run_parallel(simulation_config, run_config)
+waveform, photon_maps_data, sampled_heatmaps = run_parallel(
+    simulation_config, run_config
+)
 
 # ── Waveform stacked plot ──────────────────────────────────────────────────
 plot_stacked_waveform(waveform)
@@ -57,9 +64,8 @@ print(f"Laser-water intersection: {water_intersection}")
 water_center_xz = (water_intersection[0], water_intersection[2])
 seafloor_center_xz = (sea_floor_intersection[0], sea_floor_intersection[2])
 
-laser_spot_radius = (
-    simulation_config.scene.flying_height
-    * math.tan(simulation_config.laser.divergence_angle)
+laser_spot_radius = simulation_config.scene.flying_height * math.tan(
+    simulation_config.laser.divergence_angle
 )
 print(f"Laser spot radius: {laser_spot_radius:.4f} m")
 print(f"Seafloor laser footprint center: {seafloor_center_xz}")
@@ -143,16 +149,24 @@ if sampled_heatmaps is not None:
     water_bin_size = 2 * simulation_config.heatmap.water_extent / bins
     seafloor_bin_size = 2 * simulation_config.heatmap.seafloor_extent / bins
 
-    print(f"\nHeatmap resolution:")
-    print(f"  Water:    {bins}x{bins} bins, {water_bin_size*1000:.2f} mm/bin, ±{simulation_config.heatmap.water_extent} m")
-    print(f"  Seafloor: {bins}x{bins} bins, {seafloor_bin_size*1000:.2f} mm/bin, ±{simulation_config.heatmap.seafloor_extent} m")
+    print("\nHeatmap resolution:")
+    print(
+        f"  Water:    {bins}x{bins} bins, {water_bin_size*1000:.2f} mm/bin, ±{simulation_config.heatmap.water_extent} m"
+    )
+    print(
+        f"  Seafloor: {bins}x{bins} bins, {seafloor_bin_size*1000:.2f} mm/bin, ±{simulation_config.heatmap.seafloor_extent} m"
+    )
 
     water_nonzero = np.count_nonzero(sampled_heatmaps.water_heatmap)
     seafloor_nonzero = np.count_nonzero(sampled_heatmaps.seafloor_heatmap)
     total_bins = bins * bins
-    print(f"\nNon-zero bins:")
-    print(f"  Water:    {water_nonzero}/{total_bins} ({100*water_nonzero/total_bins:.1f}%)")
-    print(f"  Seafloor: {seafloor_nonzero}/{total_bins} ({100*seafloor_nonzero/total_bins:.1f}%)")
+    print("\nNon-zero bins:")
+    print(
+        f"  Water:    {water_nonzero}/{total_bins} ({100*water_nonzero/total_bins:.1f}%)"
+    )
+    print(
+        f"  Seafloor: {seafloor_nonzero}/{total_bins} ({100*seafloor_nonzero/total_bins:.1f}%)"
+    )
 
     if water_heatmap_total > 0:
         print("\n✓ Water heatmap has accumulated energy")
@@ -180,7 +194,9 @@ if sampled_heatmaps is not None:
     )
 
     # ── Radial energy histograms ──────────────────────────────────────────
-    n_backward_total = run_config.batches_backward * run_config.photons_per_batch_backward
+    n_backward_total = (
+        run_config.batches_backward * run_config.photons_per_batch_backward
+    )
     plot_radial_energy_histograms(
         sampled_heatmaps,
         photon_maps_data,
@@ -192,7 +208,9 @@ if sampled_heatmaps is not None:
 
     # ── Scatter radius correlation heatmap ────────────────────────────────
     if sampled_heatmaps.scatter_radius_heatmap is not None:
-        plot_scatter_radius_heatmap(sampled_heatmaps.scatter_radius_heatmap, simulation_config.heatmap)
+        plot_scatter_radius_heatmap(
+            sampled_heatmaps.scatter_radius_heatmap, simulation_config.heatmap
+        )
 
 
 else:

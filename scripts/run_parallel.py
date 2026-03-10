@@ -1,10 +1,9 @@
-import os
-
 import numpy as np
+
 from alb_sim.config.run import RunConfig
 from alb_sim.config.sea_floor import SeaFloorConfig
-from alb_sim.config.water import TurbidityLayerConfig, WaterConfig
 from alb_sim.config.simulation import SimulationConfig
+from alb_sim.config.water import TurbidityLayerConfig, WaterConfig
 from alb_sim.execution.parallel import run_parallel
 from alb_sim.plotting.plot_stacked_waveform import plot_stacked_waveform
 from alb_sim.plotting.plot_waveform import plot_waveform
@@ -25,7 +24,7 @@ run_config = RunConfig(
     batches_backward=(8) * 5,
 )
 
-waveform = run_parallel(simulation_config, run_config)
+waveform, _, _ = run_parallel(simulation_config, run_config)
 
 plot_stacked_waveform(waveform)
 

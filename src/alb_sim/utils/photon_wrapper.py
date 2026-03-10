@@ -6,6 +6,7 @@ from alb_sim.utils.types import Array, Vector3Array
 @dataclass
 class PhotonWrapper:
     """Lightweight container for photon state arrays with convenient slicing."""
+
     positions: Vector3Array
     directions: Vector3Array
     energies: Array

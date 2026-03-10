@@ -21,7 +21,8 @@ airborne_laser_bathymetry/
 ├── src/alb_sim/        # Core simulation package
 ├── scripts/            # Executable scripts (batch runs, multiprocessing)
 ├── notebooks/          # Jupyter notebooks (explanations, visualization)
-└── pyproject.toml
+├── pyproject.toml
+└── readme.md
 ```
 
 The core simulation code lives in `src/alb_sim` and can be imported as a regular Python package.
@@ -30,7 +31,7 @@ The core simulation code lives in `src/alb_sim` and can be imported as a regular
 
 ## System Requirements
 
-- Python 3.10 or newer
+- Python 3.9 or newer
 - Linux (recommended)
 - Windows supported via WSL (multiprocessing is limited on native Windows)
 - macOS: untested
@@ -46,15 +47,15 @@ The core simulation code lives in `src/alb_sim` and can be imported as a regular
 Linux / WSL:
 
 ```bash
-python -m venv venv
-source venv/bin/activate
+python -m venv .venv
+source .venv/bin/activate
 ```
 
 Windows (PowerShell):
 
 ```bash
-python -m venv venv
-venv\Scripts\Activate.ps1
+python -m venv .venv
+.venv\Scripts\Activate.ps1
 ```
 
 Ensure that python and pip now point to the virtual environment.
@@ -109,7 +110,7 @@ Installs libraries required for plotting and visualization outside notebooks.
 pip install -e .[dev]
 ```
 
-Includes formatting and linting tools
+Includes formatting, linting and type checking tools.
 
 Multiple extras can be combined:
 
@@ -173,6 +174,29 @@ This project uses editable installs (`pip install -e .`) to ensure:
 - On Windows, multiprocessing is limited due to process spawning behavior.
 - For Windows users, WSL is strongly recommended.
 
+### Development tools
+
+- *Black* for formatting, `black src/ notebooks/ scripts/`
+- *Ruff* for linting, `ruff check --fix src/ notebooks/ scripts/`
+- *Mypy* for type checking, `mypy --check-untyped-defs src/`
+
+---
+
 ## License
 
 No license specified as of 09.03.2026.
+
+---
+
+## References
+
+
+
+- **Simulation is based on the implementation of Yang et al.**:  
+  F. Yang et al., ‘Modeling and Analyzing Water Column Forward Scattering Effect on Airborne LiDAR Bathymetry’, IEEE Journal of Oceanic Engineering, vol. 48, no. 4, pp. 1373–1388, Oct. 2023, doi: 10.1109/JOE.2023.3275695.
+- **Water interaction, scattering and absorption**:  
+  C. D. Mobley, ‘The Oceanic Optics Book’, 2022, International Ocean Colour Coordinating Group (IOCCG), Dartmouth, NS, Canada. doi: 10.25607/OBP-1710.
+- **Microfacet and lambertian BRDF**:  
+  J. Boksansky, ‘Crash course in BRDF implementation’. Feb. 2021. Accessed: Jan. 21, 2026. [Online]. Available: <https://boksajak.github.io/blog/BRDF>
+- **Photon Mapping**:  
+  H. W. Jensen, ‘Global Illumination using Photon Maps’, in Rendering Techniques ’96, X. Pueyo and P. Schröder, Eds, Vienna: Springer, 1996, pp. 21–30. doi: 10.1007/978-3-7091-7484-5_3.

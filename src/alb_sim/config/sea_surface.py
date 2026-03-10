@@ -10,7 +10,7 @@ class SeaSurfaceConfig:
         metadata={"unit": "", "description": "Proportion of light reflected"},
     )
     roughness: float = field(
-        default=0.035, metadata={"unit": "", "description": "Roughness of the surface"}
+        default=0.05, metadata={"unit": "", "description": "Roughness of the surface"}
     )
 
     def __post_init__(self):

@@ -329,10 +329,7 @@ class Simulation:
         self, subset: PhotonWrapper, next_positions: Vector3Array, *, forward: bool
     ) -> PhotonWrapper:
         """
-        Handle scattering and general traversing in water.
-
-        Returns:
-            New PhotonWrapper containing positions, directions, energies, optical depth and optical depth targets
+        Handle scattering and general traversing of photons in water.
         """
 
         step_vectors = next_positions - subset.positions
@@ -507,7 +504,7 @@ class Simulation:
     def handle_seafloor(
         self, subset: PhotonWrapper, next_positions: Vector3Array, *, forward: bool
     ) -> PhotonWrapper:
-        """Handle Lambertian reflection at the seafloor boundary."""
+        """Handle Lambertian reflection of photons at the seafloor boundary."""
         # Calculate intersection with seafloor
         step_vectors = next_positions - subset.positions
         with np.errstate(divide="ignore", invalid="ignore"):
