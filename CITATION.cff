@@ -1,0 +1,25 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: PyALBSim
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Danny
+    family-names: Schober
+    affiliation: Technische Universität Dresden
+  - given-names: Richard Karl
+    family-names: Fuchs
+    affiliation: Technische Universität Dresden
+  - given-names: Katja
+    family-names: Richter
+    email: katja.richter1@tu-dresden.de
+    affiliation: Technische Universität Dresden
+  - given-names: David
+    family-names: Mader
+    affiliation: Technische Universität Dresden
+    email: david.mader@tu-dresden.de
+repository-code: 'https://github.com/DxnnySch/PyALBSim'
