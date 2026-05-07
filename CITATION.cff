@@ -22,4 +22,5 @@ authors:
     family-names: Mader
     affiliation: Technische Universität Dresden
     email: david.mader@tu-dresden.de
+doi: 10.5281/zenodo.20068111
 repository-code: 'https://github.com/DxnnySch/PyALBSim'
