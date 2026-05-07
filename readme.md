@@ -1,5 +1,7 @@
 # PyALBSim
 
+[![DOI](https://zenodo.org/badge/988257010.svg)](https://doi.org/10.5281/zenodo.20068111) 
+
 This repository contains a Python-based simulation framework for airborne laser bathymetry (ALB) using photon tracing and photon mapping.
 
 The simulation models:
