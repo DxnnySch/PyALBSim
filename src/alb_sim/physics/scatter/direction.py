@@ -13,13 +13,21 @@ def sample_scattering_directions_batch(
     """
     Vectorized batch sampling of scattering directions for arbitrary incoming directions.
 
-    Parameters:
-        vsf_theta: Angle array (same length as vsf_cdf)
-        vsf_cdf: Phase function cumulative distribution function
-        incoming_dirs: (N, 3) array of unit vectors representing incoming photon directions
-        rng: numpy random generator
-    Returns:
-        directions: (N, 3) numpy array of scattered unit direction vectors
+    Parameters
+    ----------
+    vsf_theta : Array
+        Scattering angle grid (same length as ``vsf_cdf``).
+    vsf_cdf : Array
+        Cumulative distribution function of the volume scattering function.
+    incoming_dirs : Vector3Array
+        Unit vectors representing incoming photon directions.
+    rng : numpy.random.Generator
+        Random number generator used for sampling.
+
+    Returns
+    -------
+    Vector3Array
+        Scattered unit direction vectors of shape (N, 3).
     """
     num_samples = incoming_dirs.shape[0]
 

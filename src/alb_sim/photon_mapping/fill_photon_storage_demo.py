@@ -14,7 +14,16 @@ def fill_photon_storage_demo(
     """
     Fill a PhotonStorage with synthetic demo photons.
 
-    This is intended for visualization / debugging, not physical correctness.
+    This is intended for visualisation and debugging, not physical correctness.
+
+    Parameters
+    ----------
+    storage
+        PhotonStorage-like object to populate.
+    n_surface, n_scatter, n_bottom : int, optional
+        Number of synthetic photons to generate for each interaction type.
+    seed : int, optional
+        Random seed for reproducibility.
     """
     rng = np.random.default_rng(seed)
 

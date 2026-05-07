@@ -3,6 +3,8 @@ from dataclasses import dataclass, field
 
 @dataclass(frozen=True)
 class LaserConfig:
+    """Configuration for the laser emission source."""
+
     divergence_angle: float = field(
         default=1e-3,
         metadata={
@@ -40,5 +42,6 @@ class LaserConfig:
     )
 
     def __post_init__(self):
+        """Validate basic laser pointing constraints."""
         if self.nadir_angle >= 90:
             raise ValueError("Nadir angle must be below 90 degrees")

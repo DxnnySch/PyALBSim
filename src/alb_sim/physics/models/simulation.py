@@ -1,7 +1,10 @@
 import numpy as np
 
 from alb_sim.config.simulation import SimulationConfig
-from alb_sim.math.direction_cone import sample_directions_in_cone
+from alb_sim.math.direction_cone import (
+    sample_directions_in_cone_gaussian,
+    sample_directions_in_cone_uniform,
+)
 from alb_sim.math.disk_sampling import sample_disk_points
 from alb_sim.physics.constants import EPSILON, LIGHT_SPEED_AIR
 from alb_sim.physics.emission.times import (
@@ -11,18 +14,26 @@ from alb_sim.physics.emission.times import (
 from alb_sim.physics.models.laser import LaserModel
 from alb_sim.physics.models.sea_surface import SeaSurfaceModel
 from alb_sim.physics.models.water import WaterModel
-from alb_sim.utils.types import Array, Vector3Array
+from alb_sim.utils.types import Array, Vector3, Vector3Array
 
 
 class SimulationModel:
     def __init__(self, config: SimulationConfig):
+        """
+        Geometric and physical model derived from a simulation configuration.
+
+        Parameters
+        ----------
+        config : SimulationConfig
+            Global configuration describing scene, water column, laser, sensor, and outputs.
+        """
         self._config = config
 
         self.laser = LaserModel(self._config.laser)
         self.water = WaterModel(
             self._config.water, self._config.laser, self._config.scene
         )
-        self.sea_surface = SeaSurfaceModel(self._config.sea_surface, self._config.water)
+        self.sea_surface = SeaSurfaceModel(self._config.sea_surface, self.water)
 
         self.effective_sample_rate = (
             self._config.sample_multiplier * self._config.sensor.sample_rate
@@ -32,41 +43,110 @@ class SimulationModel:
         self.steps = self._calculate_steps()
 
     def _calculate_steps(self) -> int:
+        """Compute the number of simulation time steps for a round-trip path."""
         distance = self.seafloor_y / self.laser.direction[1]
         # print(distance)
         return int(1.5 * (distance * round(self.sample_rate)) / LIGHT_SPEED_AIR)
 
     @property
     def sample_rate(self) -> int:
+        """Sampling rate of the recorded waveform in Hz."""
         return self._config.sensor.sample_rate
 
     @property
     def sample_multiplier(self) -> int:
+        """Oversampling factor applied to the base sensor sample rate."""
         return self._config.sample_multiplier
 
     @property
     def photon_mapping_k(self) -> int:
+        """Number of nearest neighbours to query during photon mapping."""
         return self._config.photon_mapping_k
 
     @property
     def water_surface_y(self) -> float:
+        """Vertical coordinate of the mean water surface in simulation space."""
         return -self._config.scene.flying_height
 
     @property
     def seafloor_y(self) -> float:
+        """Vertical coordinate of the seafloor in simulation space."""
         return -(self._config.scene.flying_height + self.water.depth)
 
     @property
     def seafloor_albedo(self) -> float:
         return self._config.sea_floor.albedo
 
+    @property
+    def heatmap_config(self):
+        """Return the heatmap configuration."""
+        return self._config.heatmap
+
+    # ========================================
+    # Intersection Points
+    # ========================================
+
+    @property
+    def water_surface_intersection(self) -> Vector3:
+        """
+        Compute the intersection position of the laser beam with the water surface.
+        Returns the (x, y, z) intersection point on the water surface (y = water_surface_y).
+        """
+        # Laser origin at (0, 0, 0)
+        laser_direction = self.laser.direction
+
+        water_surface_interaction_point = (
+            self.water_surface_y / laser_direction[1]
+        ) * laser_direction
+
+        return water_surface_interaction_point
+
+    @property
+    def sea_floor_intersection(self) -> Vector3:
+        """
+        Compute the intersection position of the laser beam with the sea floor.
+        Returns the (x, y, z) intersection point on the sea floor (y = seafloor_y).
+        """
+        # Laser origin at (0, 0, 0)
+        laser_direction = self.laser.direction
+        refraction_direction = self.sea_surface.calculate_refraction_direction(
+            np.array([laser_direction]), np.array([0, 1, 0])
+        )[0][0]
+
+        water_surface_interaction_point = (
+            self.water_surface_y / laser_direction[1]
+        ) * laser_direction
+        seafloor_interaction_point = (
+            water_surface_interaction_point
+            + (-self.water.depth / refraction_direction[1]) * refraction_direction
+        )
+
+        return seafloor_interaction_point
+
     # ========================================
     # Emission
     # ========================================
 
-    def sample_vector_direction_in_cone(
+    def sample_starting_direction(
         self, num_samples: int, rng: np.random.Generator, *, forward: bool
     ) -> Vector3Array:
+        """
+        Sample initial positions plus directions for photons.
+
+        Parameters
+        ----------
+        num_samples : int
+            Number of photons to generate.
+        rng : numpy.random.Generator
+            Random number generator used for sampling.
+        forward : bool
+            If True, sample from the laser beam; otherwise from the sensor aperture.
+
+        Returns
+        -------
+        Vector3Array
+            Array of starting positions plus direction offsets for each photon.
+        """
         cone_direction = self.laser.direction
         cone_half_angle = (
             self.laser.divergence_angle
@@ -75,7 +155,7 @@ class SimulationModel:
         )
 
         origin_point = (
-            np.array([0, 0, 0])
+            np.array([0, 0, 0], dtype=np.float64)
             if forward
             else sample_disk_points(
                 cone_direction,
@@ -86,13 +166,39 @@ class SimulationModel:
             )
         )
 
-        return origin_point + sample_directions_in_cone(
-            cone_direction, cone_half_angle, num_samples, rng
+        return origin_point + (
+            sample_directions_in_cone_gaussian(
+                cone_direction, cone_half_angle, num_samples, rng
+            )
+            if forward
+            else sample_directions_in_cone_uniform(
+                cone_direction, cone_half_angle, num_samples, rng
+            )
         )
 
     def get_emission_time_deltas(
         self, num_samples: int, rng: np.random.Generator, *, forward: bool
     ) -> Array:
+        """
+        Sample emission time offsets in time-step units.
+
+        For the forward pass, samples from a Gaussian laser pulse. For the backward
+        pass, all photons start at time zero.
+
+        Parameters
+        ----------
+        num_samples : int
+            Number of photons to generate.
+        rng : numpy.random.Generator
+            Random number generator used for sampling.
+        forward : bool
+            If True, sample from the laser pulse; otherwise return zeros.
+
+        Returns
+        -------
+        Array
+            Per-photon emission time offsets in simulation steps.
+        """
         if forward:
             return time_offset_to_steps(
                 sample_gaussian_pulse_batch(num_samples, self.laser.pulse_fwhm, rng),
@@ -106,6 +212,19 @@ class SimulationModel:
     # ========================================
 
     def velocities_by_position(self, positions: Vector3Array) -> Array:
+        """
+        Compute propagation velocity for each photon given its vertical position.
+
+        Parameters
+        ----------
+        positions : Vector3Array
+            Photon positions in simulation coordinates.
+
+        Returns
+        -------
+        Array
+            Per-photon propagation speeds in m/s.
+        """
         y: Array = positions[:, 1]
         velocities = np.full(len(positions), EPSILON)
 
@@ -120,7 +239,7 @@ class SimulationModel:
                 (y[~mask_air] - self.water_surface_y) * -1
             )
 
-        return velocities
+        return velocities.astype(np.float64)
 
     # ========================================
     # Scattering
@@ -129,12 +248,38 @@ class SimulationModel:
     def lidar_attenuation_coefficients_by_position(
         self, positions: Vector3Array
     ) -> Array:
+        """
+        Get lidar attenuation coefficients at each photon position.
+
+        Parameters
+        ----------
+        positions : Vector3Array
+            Photon positions in simulation coordinates.
+
+        Returns
+        -------
+        Array
+            Total attenuation coefficient (absorption + scattering) at each position.
+        """
         y: Array = positions[:, 1]
         return self.water.lidar_attenuation_coefficients_by_depth(
             (y - self.water_surface_y) * -1
         )
 
     def single_scattering_albedos_by_position(self, positions: Vector3Array) -> Array:
+        """
+        Get single-scattering albedo at each photon position.
+
+        Parameters
+        ----------
+        positions : Vector3Array
+            Photon positions in simulation coordinates.
+
+        Returns
+        -------
+        Array
+            Single-scattering albedo values (dimensionless) per photon.
+        """
         y: Array = positions[:, 1]
         return self.water.single_scattering_albedos_by_depth(
             (y - self.water_surface_y) * -1
@@ -146,6 +291,23 @@ class SimulationModel:
         incoming_directions: Vector3Array,
         rng: np.random.Generator,
     ) -> Array:
+        """
+        Sample new photon directions after scattering in the water column.
+
+        Parameters
+        ----------
+        positions : Vector3Array
+            Current photon positions in simulation coordinates.
+        incoming_directions : Vector3Array
+            Directions before scattering.
+        rng : numpy.random.Generator
+            Random number generator used for sampling.
+
+        Returns
+        -------
+        Array
+            New photon directions after scattering.
+        """
         y: Array = positions[:, 1]
         return self.water.sample_scattering_directions_by_depth(
             (y - self.water_surface_y) * -1, incoming_directions, rng

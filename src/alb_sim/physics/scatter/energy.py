@@ -12,11 +12,23 @@ def calculate_energy_batch(
     vsf_cdf: Array,
 ) -> Array:
     """
-    photon_direction: (N, 3) photon directions
-    sensor_photon_direction: (3,) sensor photon direction
-    vsf_theta: (N,) angles of scattering function
-    vsf_cdf: (N,) cumulative distribution function of scattering function
-    returns: (N,) energies
+    Evaluate scattered energy towards the sensor using a volume scattering function.
+
+    Parameters
+    ----------
+    photon_directions : Vector3Array
+        Photon directions after scattering.
+    sensor_photon_direction : Vector3
+        Direction from scatter point towards the sensor.
+    vsf_theta : Array
+        Scattering angle grid for the VSF.
+    vsf_cdf : Array
+        Cumulative distribution function of the VSF.
+
+    Returns
+    -------
+    Array
+        Per-photon energy weights corresponding to the VSF over the scattering angle bin.
     """
     # Normalize - needed?
     photon_directions = normalize_batch(photon_directions)

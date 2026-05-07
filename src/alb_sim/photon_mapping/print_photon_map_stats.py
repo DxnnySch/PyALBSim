@@ -9,6 +9,21 @@ from alb_sim.photon_mapping.photon_type import PhotonType
 def photon_map_stats(
     photon_maps: Mapping[PhotonType, PhotonMapData], tablefmt: str = "github"
 ) -> str:
+    """
+    Summarise photon map memory usage per photon type as a formatted table.
+
+    Parameters
+    ----------
+    photon_maps : Mapping[PhotonType, PhotonMapData]
+        Photon maps to summarise.
+    tablefmt : str, optional
+        Tabulate table format (e.g. ``"github"``, ``"plain"``).
+
+    Returns
+    -------
+    str
+        Formatted table of photon counts and memory usage.
+    """
     rows = []
 
     total_photons = 0
@@ -56,6 +71,19 @@ def photon_map_stats(
 
 
 def photon_summary(photon_maps) -> str:
+    """
+    Return a one-line summary of total photons and memory usage.
+
+    Parameters
+    ----------
+    photon_maps : Mapping[PhotonType, PhotonMapData]
+        Photon maps to summarise.
+
+    Returns
+    -------
+    str
+        Human-readable summary string.
+    """
     n = sum(pm.positions.shape[0] for pm in photon_maps.values())
     mem = (
         sum(
@@ -68,4 +96,4 @@ def photon_summary(photon_maps) -> str:
         / 1024
     )
 
-    f"{n} total photons across {len(photon_maps)} maps, {mem:.2f} KiB"
+    return f"{n} total photons across {len(photon_maps)} maps, {mem:.2f} KiB"

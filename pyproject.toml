@@ -27,10 +27,11 @@ notebooks = [
     "ipykernel",
     "jupyterlab",
     "matplotlib",
-    "pandas"
+    "pandas",
+    "ipympl"
 ]
 dev = [
-    "black",
+    "black[jupyter]",
     "ruff",
     "pre-commit",
     "mypy",
@@ -62,3 +63,6 @@ ignore = [
     "E701",
     "E501"
 ]
+
+[tool.mypy]
+disable_error_code = ["import-untyped"]

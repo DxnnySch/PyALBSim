@@ -8,6 +8,8 @@ from alb_sim.utils.parameter_profile import NumberOrScalar, normalize_number_or_
 
 @dataclass(frozen=True)
 class FournierForandConfig:
+    """Parameters for the Fournier-Forand scattering phase function."""
+
     refractive_index_ratio: float = field(
         default=1.1,
         metadata={
@@ -26,6 +28,8 @@ class FournierForandConfig:
 
 @dataclass(frozen=True)
 class TurbidityLayerConfig:
+    """Configuration for a single water turbidity layer with depth-varying IOPs."""
+
     height: float = field(
         default=3,
         metadata={"unit": "m", "description": "Height of the turbidity layer"},
@@ -70,6 +74,7 @@ class TurbidityLayerConfig:
     )
 
     def __post_init__(self):
+        """Normalize depth-dependent IOPs and derive sublayer discretization."""
         if self.height <= 0:
             raise ValueError("Layer height must be positive")
 
@@ -109,6 +114,8 @@ class TurbidityLayerConfig:
 
 @dataclass(frozen=True)
 class WaterConfig:
+    """Configuration for the water column as a stack of turbidity layers."""
+
     layers: tuple[TurbidityLayerConfig, ...] = field(
         default_factory=lambda: (TurbidityLayerConfig(),),
         metadata={
