@@ -1,0 +1,81 @@
+Laser Bathymetry Simulator – Source-Available License
+
+Copyright (c) 2026 Danny Schober, Richard Karl Fuchs, Katja Richter, David Mader
+
+Developed in the context of a Komplexpraktikum at Technische Universität Dresden,
+Institut für Photogrammetrie und Fernerkundung (IPF).
+
+
+1. DEFINITIONS
+
+"Software" refers to all source code, documentation, and associated files
+contained in this repository.
+
+"Copyright Holders" refers collectively to Danny Schober, Richard Karl Fuchs,
+Katja Richter, and David Mader.
+
+"Use" includes, but is not limited to, copying, modifying, merging, publishing,
+distributing, sublicensing, executing, or creating derivative works of the
+Software, whether for academic, commercial, or private purposes.
+
+
+2. ALL RIGHTS RESERVED
+
+All rights in and to the Software are reserved by the Copyright Holders. No
+rights are granted by this license except as explicitly stated below. The public
+availability of the source code on GitHub or any other platform does not
+constitute a grant of any license or permission to Use the Software.
+
+
+3. PERMISSION REQUIRED
+
+Any Use of the Software — in whole or in part, in original or modified form —
+requires the prior written consent of the Copyright Holders.
+
+Consent is granted when ALL of the following contact persons have given their
+explicit written approval:
+
+  Katja Richter   katja.richter1@tu-dresden.de
+  David Mader     david.mader@tu-dresden.de
+
+The Copyright Holders reserve the right to attach conditions to any permission
+granted, including but not limited to restrictions on the scope, duration, or
+purpose of Use.
+
+
+4. VIEWING AND REFERENCE
+
+This license permits third parties to view and read the source code solely for
+the purpose of inspection, review, or academic reference. Viewing does not
+include the right to execute, copy, modify, or redistribute any part of the
+Software.
+
+
+5. CITATION REQUIREMENT
+
+Any permitted Use of the Software must include the following:
+
+(a) A citation of the Software using the DOI provided in the repository
+    (see README or CITATION.cff), and
+
+(b) A clear acknowledgement of the following form:
+
+    "This software was developed by Danny Schober and Richard Karl Fuchs
+     in collaboration with Katja Richter and David Mader at Technische
+     Universität Dresden, Institut für Photogrammetrie und Fernerkundung (IPF)."
+
+
+6. NO WARRANTY
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE COPYRIGHT
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN
+ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+7. GOVERNING LAW
+
+This license shall be governed by and construed in accordance with the laws of
+the Federal Republic of Germany. The place of jurisdiction is Dresden, Germany.

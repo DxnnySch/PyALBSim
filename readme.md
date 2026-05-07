@@ -1,4 +1,4 @@
-# Airborne Laser Bathymetry Simulation
+# PyALBSim
 
 This repository contains a Python-based simulation framework for airborne laser bathymetry (ALB) using photon tracing and photon mapping.
 
@@ -17,7 +17,7 @@ The code is optimized for vectorized NumPy operations and supports multiple exec
 ## Project Structure
 
 ```txt
-airborne_laser_bathymetry/
+PyALBSim/
 ├── src/alb_sim/        # Core simulation package
 ├── scripts/            # Executable scripts (batch runs, multiprocessing)
 ├── notebooks/          # Jupyter notebooks (explanations, visualization)
@@ -184,13 +184,11 @@ This project uses editable installs (`pip install -e .`) to ensure:
 
 ## License
 
-No license specified as of 09.03.2026.
+All rights reserved. See `LICENSE` for more information.
 
 ---
 
 ## References
-
-
 
 - **Simulation is based on the implementation of Yang et al.**:  
   F. Yang et al., ‘Modeling and Analyzing Water Column Forward Scattering Effect on Airborne LiDAR Bathymetry’, IEEE Journal of Oceanic Engineering, vol. 48, no. 4, pp. 1373–1388, Oct. 2023, doi: 10.1109/JOE.2023.3275695.
